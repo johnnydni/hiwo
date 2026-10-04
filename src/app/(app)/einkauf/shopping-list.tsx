@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Check, ChevronRight, Plus } from "lucide-react";
-import { addShoppingItem, setShoppingDone } from "@/app/actions";
-import { createClient } from "@/lib/supabase/client";
+import { addShoppingItem, setShoppingDone } from "@/lib/api";
+import { createClient } from "@/lib/supabase";
+import { useApp } from "@/components/app-context";
 import { formatPrice } from "@/lib/format";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
@@ -27,7 +27,8 @@ export function ShoppingList({
   initialRoom: string | null;
   initiallyAdding: boolean;
 }) {
-  const router = useRouter();
+  const app = useApp();
+  const { bump } = app;
   const [mode, setMode] = useState<"all" | "room">(initialRoom ? "room" : "all");
   const [room, setRoom] = useState<string | null>(initialRoom ?? rooms[0]?.id ?? null);
   const [adding, setAdding] = useState(initiallyAdding);
@@ -45,18 +46,19 @@ export function ShoppingList({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "shopping_items", filter: `home_id=eq.${homeId}` },
-        () => router.refresh(),
+        () => bump(),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [homeId, router]);
+  }, [homeId, bump]);
 
   const toggle = (it: Item) =>
     start(async () => {
       setOptimistic({ id: it.id, done: it.status !== "done" });
-      await setShoppingDone(it.id, it.status !== "done");
+      await setShoppingDone(app, it.id, it.status !== "done");
+      bump();
     });
 
   const visible = mode === "room" ? optimistic.filter((i) => i.room_id === room) : optimistic;
@@ -183,7 +185,7 @@ function Row({ item, rooms, onToggle }: { item: Item; rooms: Room[]; onToggle: (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-[10px] object-cover" />
       )}
-      <Link href={`/einkauf/${item.id}`} className="flex min-w-0 flex-1 items-center gap-2">
+      <Link href={`/artikel?id=${item.id}`} className="flex min-w-0 flex-1 items-center gap-2">
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>
           <span className="block truncate text-[12px] text-muted">{meta}</span>
@@ -208,17 +210,21 @@ function AddItemSheet({
   const form = useRef<HTMLFormElement>(null);
   const [more, setMore] = useState(false);
   const [pending, start] = useTransition();
+  const app = useApp();
   return (
     <Sheet open={open} onClose={onClose} title="Artikel hinzufügen">
       <form
         ref={form}
-        action={(fd) =>
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
           start(async () => {
-            await addShoppingItem(fd);
+            await addShoppingItem(app, fd);
             form.current?.reset();
+            app.bump();
             onClose();
-          })
-        }
+          });
+        }}
         className="space-y-4"
       >
         <Input name="name" placeholder="Was brauchst du?" required autoFocus />

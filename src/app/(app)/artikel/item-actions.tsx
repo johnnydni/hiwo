@@ -3,8 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ImagePlus, Loader2, RotateCcw } from "lucide-react";
-import { deleteShoppingItem, setShoppingDone, updateShoppingItem } from "@/app/actions";
-import { createClient } from "@/lib/supabase/client";
+import { deleteShoppingItem, setShoppingDone, updateShoppingItem } from "@/lib/api";
+import { createClient } from "@/lib/supabase";
+import { useApp } from "@/components/app-context";
 import { prepareImage } from "@/lib/image";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
@@ -14,6 +15,8 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const app = useApp();
+  const router = useRouter();
   const done = item.status === "done";
   return (
     <div className="mt-6 space-y-3">
@@ -21,7 +24,12 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
         className="w-full"
         variant={done ? "secondary" : "primary"}
         disabled={pending}
-        onClick={() => start(() => setShoppingDone(item.id, !done))}
+        onClick={() =>
+          start(async () => {
+            await setShoppingDone(app, item.id, !done);
+            app.bump();
+          })
+        }
       >
         {done ? <RotateCcw size={17} /> : <Check size={17} />}
         {done ? "Wieder auf die Liste" : "Als erledigt"}
@@ -32,7 +40,15 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
 
       <Sheet open={editing} onClose={() => { setEditing(false); setConfirm(false); }} title="Artikel bearbeiten">
         <form
-          action={(fd) => start(async () => { await updateShoppingItem(item.id, fd); setEditing(false); })}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            start(async () => {
+              await updateShoppingItem(item.id, fd);
+              setEditing(false);
+              app.bump();
+            });
+          }}
           className="space-y-4"
         >
           <Input name="name" defaultValue={item.name} required />
@@ -69,7 +85,13 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
           <Button className="w-full" disabled={pending}>Speichern</Button>
           <button
             type="button"
-            onClick={() => (confirm ? start(() => deleteShoppingItem(item.id)) : setConfirm(true))}
+            onClick={() => (confirm
+                ? start(async () => {
+                    await deleteShoppingItem(item.id);
+                    app.bump();
+                    router.push("/einkauf");
+                  })
+                : setConfirm(true))}
             className="w-full py-2 text-[14px] text-terracotta"
           >
             {confirm ? "Wirklich löschen?" : "Artikel löschen"}
@@ -82,7 +104,7 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
 
 export function ItemImage({ homeId, itemId, url }: { homeId: string; itemId: string; url: string | null }) {
   const input = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+  const { bump } = useApp();
   const [busy, setBusy] = useState(false);
 
   async function upload(files: FileList | null) {
@@ -99,7 +121,7 @@ export function ItemImage({ homeId, itemId, url }: { homeId: string; itemId: str
       if (old?.image_path) await supabase.storage.from("photos").remove([old.image_path]);
     }
     setBusy(false);
-    router.refresh();
+    bump();
   }
 
   return (

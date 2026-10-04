@@ -5,7 +5,7 @@ import { PhotoPlaceholder, cx } from "./ui";
 
 export function RoomCard({ room, compact }: { room: RoomCardData; compact?: boolean }) {
   return (
-    <Link href={`/wohnung/${room.id}`} className="group block animate-fade-up">
+    <Link href={`/zimmer?id=${room.id}`} className="group block animate-fade-up">
       <div className={cx("overflow-hidden rounded-image bg-line", compact ? "aspect-square" : "aspect-[4/3]")}>
         {room.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Star, Home, Trash2, Sparkles } from "lucide-react";
-import { deletePhoto, setHomeCover, setRoomCover } from "@/app/actions";
+import { deletePhoto, setHomeCover, setRoomCover } from "@/lib/api";
+import { useApp } from "@/components/app-context";
 import { Sheet } from "@/components/sheet";
 import { cx } from "@/components/ui";
 import { AiSheet } from "@/components/ai-assistant";
@@ -26,12 +27,19 @@ export function PhotoStrip({
   const [ai, setAi] = useState(false);
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const app = useApp();
 
   const close = () => {
     setOpen(null);
     setConfirmDelete(false);
   };
-  const run = (fn: () => Promise<void>) => start(async () => { await fn(); close(); });
+  const run = (fn: () => Promise<void>) =>
+    start(async () => {
+      await fn();
+      close();
+      // home cover lives in the app context
+      await app.refresh();
+    });
 
   return (
     <>
@@ -77,7 +85,7 @@ export function PhotoStrip({
               <Action
                 icon={<Home size={18} strokeWidth={1.6} />}
                 disabled={pending || open.id === homeCoverId}
-                onClick={() => run(() => setHomeCover(open.id))}
+                onClick={() => run(() => setHomeCover(app, open.id))}
               >
                 {open.id === homeCoverId ? "Ist das Wohnungsbild" : "Als Bild der Wohnung"}
               </Action>

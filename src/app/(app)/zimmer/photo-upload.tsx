@@ -1,14 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase";
+import { useApp } from "@/components/app-context";
 import { prepareImage } from "@/lib/image";
 import { Button, cx } from "@/components/ui";
 
 export function usePhotoUpload(homeId: string, roomId: string) {
-  const router = useRouter();
+  const { bump } = useApp();
   const [busy, setBusy] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +38,7 @@ export function usePhotoUpload(homeId: string, roomId: string) {
       }
       setBusy((n) => n - 1);
     }
-    router.refresh();
+    bump();
   }
   return { upload, busy, error };
 }

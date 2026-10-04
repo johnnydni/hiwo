@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { MoreHorizontal } from "lucide-react";
-import { deleteRoom, renameRoom } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { deleteRoom, renameRoom } from "@/lib/api";
+import { useApp } from "@/components/app-context";
 import { Sheet } from "@/components/sheet";
 import { Button, Input } from "@/components/ui";
 
@@ -11,6 +13,8 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
   const [value, setValue] = useState(name);
   const [confirm, setConfirm] = useState(false);
   const [pending, start] = useTransition();
+  const app = useApp();
+  const router = useRouter();
   return (
     <>
       <button onClick={() => setOpen(true)} aria-label="Mehr" className="-mr-2 mt-2 rounded-full p-2 hover:bg-ink/5">
@@ -22,12 +26,24 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
           <Button
             className="w-full"
             disabled={pending || !value.trim() || value === name}
-            onClick={() => start(async () => { await renameRoom(roomId, value); setOpen(false); })}
+            onClick={() =>
+              start(async () => {
+                await renameRoom(roomId, value);
+                setOpen(false);
+                app.bump();
+              })
+            }
           >
             Speichern
           </Button>
           <button
-            onClick={() => (confirm ? start(() => deleteRoom(roomId)) : setConfirm(true))}
+            onClick={() => (confirm
+                ? start(async () => {
+                    await deleteRoom(app, roomId);
+                    app.bump();
+                    router.push("/wohnung");
+                  })
+                : setConfirm(true))}
             disabled={pending}
             className="w-full py-3 text-[14px] text-terracotta"
           >

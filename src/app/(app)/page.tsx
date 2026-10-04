@@ -1,29 +1,36 @@
+"use client";
+
 import Link from "next/link";
 import { ChevronRight, ShoppingBag, Camera, Clock } from "lucide-react";
-import { getContext, loadRoomCards, signPaths } from "@/lib/data";
+import { loadRoomCards, signPaths } from "@/lib/data";
+import { useApp, useData } from "@/components/app-context";
 import { firstName, greeting, plural } from "@/lib/format";
 import { RoomCard } from "@/components/room-card";
 import { PhotoPlaceholder, buttonClass } from "@/components/ui";
 
-export default async function HomePage() {
-  const ctx = await getContext();
-  const { supabase, home, profile } = ctx;
-
-  const [rooms, { count: openCount }, { data: homeCover }] = await Promise.all([
-    loadRoomCards(ctx),
-    supabase
-      .from("shopping_items")
-      .select("id", { count: "exact", head: true })
-      .eq("home_id", home.id)
-      .eq("status", "open"),
-    home.cover_photo_id
-      ? supabase.from("room_photos").select("storage_path").eq("id", home.cover_photo_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
-
-  let coverUrl: string | null = null;
-  if (homeCover?.storage_path) coverUrl = (await signPaths(supabase, [homeCover.storage_path])).get(homeCover.storage_path) ?? null;
-  coverUrl ??= rooms.find((r) => r.coverUrl)?.coverUrl ?? null;
+export default function HomePage() {
+  const { home, profile } = useApp();
+  const { data } = useData(async (ctx) => {
+    const { supabase } = ctx;
+    const [rooms, { count: openCount }, { data: homeCover }] = await Promise.all([
+      loadRoomCards(ctx),
+      supabase
+        .from("shopping_items")
+        .select("id", { count: "exact", head: true })
+        .eq("home_id", ctx.home.id)
+        .eq("status", "open"),
+      ctx.home.cover_photo_id
+        ? supabase.from("room_photos").select("storage_path").eq("id", ctx.home.cover_photo_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    let coverUrl: string | null = null;
+    if (homeCover?.storage_path)
+      coverUrl = (await signPaths(supabase, [homeCover.storage_path])).get(homeCover.storage_path) ?? null;
+    coverUrl ??= rooms.find((r) => r.coverUrl)?.coverUrl ?? null;
+    return { rooms, openCount: openCount ?? 0, coverUrl };
+  });
+  if (!data) return null;
+  const { rooms, openCount, coverUrl } = data;
 
   const recent = [...rooms].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const photoCount = rooms.reduce((n, r) => n + r.photoCount, 0);
@@ -70,7 +77,7 @@ export default async function HomePage() {
             {photoCount ? `${plural(photoCount, "Foto", "Fotos")} von deinem Zuhause` : "Noch keine Fotos gespeichert"}
           </TodayRow>
           {recent[0] && (
-            <TodayRow href={`/wohnung/${recent[0].id}`} icon={<Clock size={18} strokeWidth={1.6} />}>
+            <TodayRow href={`/zimmer?id=${recent[0].id}`} icon={<Clock size={18} strokeWidth={1.6} />}>
               {recent[0].name} zuletzt bearbeitet
             </TodayRow>
           )}

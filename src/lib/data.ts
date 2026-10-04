@@ -1,54 +1,18 @@
-import "server-only";
-import { cache } from "react";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Home, Profile, Role } from "./types";
 
-export const HOME_COOKIE = "hiwo_home";
+export const HOME_KEY = "hiwo_home";
 
 export type Ctx = {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: SupabaseClient;
   userId: string;
   profile: Profile;
   home: Home;
   role: Role;
 };
 
-/** Signed-in user + their current home. Redirects to login / onboarding. */
-export const getContext = cache(async (): Promise<Ctx> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const [{ data: profile }, { data: memberships }] = await Promise.all([
-    supabase.from("profiles").select("id,email,display_name,avatar_path").eq("id", user.id).single(),
-    supabase
-      .from("home_members")
-      .select("role, created_at, home:homes(id,name,city,cover_photo_id,created_at)")
-      .eq("user_id", user.id)
-      .order("created_at"),
-  ]);
-
-  // Onboarding asks for a home (first user) and a name (everyone, incl. invited people).
-  if (!memberships?.length || !profile?.display_name) redirect("/willkommen");
-
-  const preferred = (await cookies()).get(HOME_COOKIE)?.value;
-  const m = memberships.find((x) => (x.home as unknown as Home)?.id === preferred) ?? memberships[0];
-
-  return {
-    supabase,
-    userId: user.id,
-    profile: profile ?? { id: user.id, email: user.email ?? null, display_name: null, avatar_path: null },
-    home: m.home as unknown as Home,
-    role: m.role as Role,
-  };
-});
-
 /** Signed URLs for private photos, keyed by storage path. */
-export async function signPaths(supabase: Ctx["supabase"], paths: (string | null | undefined)[]) {
+export async function signPaths(supabase: SupabaseClient, paths: (string | null | undefined)[]) {
   const unique = [...new Set(paths.filter((p): p is string => !!p))];
   const map = new Map<string, string>();
   if (!unique.length) return map;
@@ -69,7 +33,7 @@ export type RoomCard = {
 };
 
 /** Rooms of the current home with cover image and counts, in display order. */
-export async function loadRoomCards(ctx: Ctx): Promise<RoomCard[]> {
+export async function loadRoomCards(ctx: Pick<Ctx, "supabase" | "home">): Promise<RoomCard[]> {
   const { data: rooms, error } = await ctx.supabase
     .from("rooms")
     .select(

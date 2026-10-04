@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { createRoom } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { createRoom } from "@/lib/api";
+import { useApp } from "@/components/app-context";
 import { Sheet } from "@/components/sheet";
 import { Button, Input } from "@/components/ui";
 
@@ -11,10 +13,22 @@ const SUGGESTIONS = ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer", "Arbe
 function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () => void; existing: string[] }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const app = useApp();
+  const router = useRouter();
   const free = SUGGESTIONS.filter((s) => !existing.includes(s));
   return (
     <Sheet open={open} onClose={onClose} title="Zimmer hinzufügen">
-      <form action={createRoom} onSubmit={() => setBusy(true)} className="space-y-4">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!name.trim()) return;
+          setBusy(true);
+          const id = await createRoom(app, name);
+          app.bump();
+          router.push(`/zimmer?id=${id}`);
+        }}
+        className="space-y-4"
+      >
         <Input name="name" placeholder="Wie heißt das Zimmer?" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
         {free.length > 0 && (
           <div className="flex flex-wrap gap-2">
