@@ -184,6 +184,20 @@ export function useActions() {
       return photo.id;
     },
 
+    /** New picture for a variant; name, note, list, sketches and Wohnungsbild stay. */
+    replaceVariantPhoto: async (id: string, file: File) => {
+      const old = doc.photos.find((p) => p.id === id);
+      if (!old) return;
+      const photo = await upload(old.room_id, file);
+      await mutate("hiwo: Variantenbild ersetzt", (d) => {
+        const v = d.photos.find((p) => p.id === id);
+        if (!v) return;
+        Object.assign(v, { path: photo.path, sha: photo.sha, width: photo.width, height: photo.height });
+        touchRoom(d, v.room_id);
+      });
+      await removeFile(conn, old.path, old.sha, "hiwo: altes Variantenbild").catch(() => {});
+    },
+
     updateVariant: (id: string, fd: FormData) =>
       mutate("hiwo: Variante bearbeitet", (d) => {
         const v = d.photos.find((p) => p.id === id);

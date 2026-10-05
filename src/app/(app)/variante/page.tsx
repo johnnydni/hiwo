@@ -3,12 +3,13 @@
 import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Home, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Home, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { ItemList } from "@/components/item-list";
 import { Photo } from "@/components/photo";
 import { PhotoTools } from "@/components/photo-tools";
+import { usePickPhoto } from "@/components/pick-photo";
 import { CompareSlider } from "@/components/compare-slider";
 import { Sheet } from "@/components/sheet";
 import { basePhoto } from "@/lib/selectors";
@@ -100,7 +101,7 @@ function VariantView() {
 
 function EditVariant({ variant }: { variant: RoomPhoto }) {
   const { doc } = useApp();
-  const { updateVariant, deletePhoto, setHomeCover } = useActions();
+  const { updateVariant, deletePhoto, setHomeCover, replaceVariantPhoto } = useActions();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -110,12 +111,17 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
     setConfirm(false);
   };
   const isHomeCover = doc.home.cover_photo_id === variant.id;
+  const picker = usePickPhoto(async (file) => {
+    await replaceVariantPhoto(variant.id, file);
+    close();
+  });
 
   return (
     <>
       <button onClick={() => setOpen(true)} aria-label="Variante bearbeiten" className="-mr-3 mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/5">
         <Pencil size={19} strokeWidth={1.6} />
       </button>
+      {picker.input}
       <Sheet open={open} onClose={close} title="Variante bearbeiten">
         <form
           onSubmit={(e) => {
@@ -141,6 +147,9 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
           </Button>
         </form>
         <div className="mt-4 divide-y divide-line rounded-card bg-card px-4 shadow-soft">
+          <Action icon={<RefreshCw size={18} strokeWidth={1.6} />} onClick={picker.pick} disabled={pending || picker.busy} loading={picker.busy}>
+            {picker.busy ? "Neues Bild wird gespeichert …" : "Bild ersetzen"}
+          </Action>
           <Action
             icon={<Home size={18} strokeWidth={1.6} />}
             disabled={pending || isHomeCover}
@@ -164,6 +173,7 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
             {confirm ? "Wirklich löschen? Die Liste bleibt beim Zimmer." : "Variante löschen"}
           </Action>
         </div>
+        {picker.error && <p className="mt-3 text-[13px] text-terracotta">{picker.error}</p>}
       </Sheet>
     </>
   );
