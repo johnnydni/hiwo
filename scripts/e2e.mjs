@@ -114,6 +114,9 @@ for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].e
   await page.click("button[aria-label='Zimmer hinzufügen']");
   await page.click(`button:has-text('${name}')`);
   await page.click("form button:has-text('Zimmer hinzufügen')");
+  // the sheet closes and the new room shows up in the overview
+  await page.waitForSelector("[role=dialog]", { state: "detached" });
+  await page.click(`a[href*='/zimmer']:has-text('${name}')`);
   await page.waitForURL(/\/zimmer\/?\?id=/);
   await page.waitForSelector(`text=So sieht ${name} jetzt aus`);
   if (i === 0) await shot("04-room-empty");
