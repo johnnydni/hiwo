@@ -8,7 +8,7 @@ import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { removeFile, uploadPhoto } from "@/lib/store";
-import type { HiwoDoc, Sketch } from "@/lib/types";
+import type { HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
   const v = fd.get(key);
@@ -144,6 +144,13 @@ export function useActions() {
           }
         });
         if (d.home.cover_photo_id && photoIds.has(d.home.cover_photo_id)) d.home.cover_photo_id = null;
+        // the area stays on the Lageplan, under the room's old name
+        const name = doc.rooms.find((r) => r.id === roomId)?.name ?? null;
+        d.plan?.rooms.forEach((p) => {
+          if (p.room_id !== roomId) return;
+          p.room_id = null;
+          p.label = name;
+        });
       });
       // files last: if this fails, the doc is still consistent
       for (const p of photos) await removeFile(conn, p.path, p.sha, "hiwo: Foto gelöscht").catch(() => {});
@@ -290,6 +297,13 @@ export function useActions() {
       });
       if (old?.image_path) await removeFile(conn, old.image_path, old.image_sha, "hiwo: altes Produktfoto").catch(() => {});
     },
+
+    // -- Lageplan --------------------------------------------------------------
+    /** Saves the whole plan (rooms and doors) at once. */
+    savePlan: (plan: { rooms: PlanRoom[]; doors: PlanDoor[] }) =>
+      mutate("hiwo: Lageplan gespeichert", (d) => {
+        d.plan = { rooms: plan.rooms, doors: plan.doors, updated_by: by, updated_at: now() };
+      }),
 
     // -- sketches: drawn-on copies of a photo, the original stays -------------
     /** Saves the editor's result as a new sketch of `sourceId`; returns its id. */

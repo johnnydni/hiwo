@@ -203,6 +203,52 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/${vp}-vergleich.png` });
   }
+  // Lageplan: Illy's sketch (Flur, a small room, a slanted Bad, door ticks), then the magic wand
+  if (!only || only.includes("lageplan")) {
+    await page.goto(BASE + "/lageplan/");
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-leer.png` });
+    const box = await page.locator("[data-testid=plan]").boundingBox();
+    const k = Math.min(box.width / 320, box.height / 260) * 0.9;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 4;
+    const at = ([x, y]) => [box.x + 20 + x * k, box.y + 20 + y * k];
+    const draw = async (pts) => {
+      await page.mouse.move(...at(pts[0]));
+      await page.mouse.down();
+      for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        for (let s = 1; s <= 8; s++) await page.mouse.move(...at([a[0] + ((b[0] - a[0]) * s) / 8 + rnd(), a[1] + ((b[1] - a[1]) * s) / 8 + rnd()]));
+      }
+      await page.mouse.up();
+    };
+    const loop = (pts) => [...pts, pts[0]];
+    await draw(loop([[10, 15], [125, 10], [122, 80], [12, 85]])); // Flur
+    await draw(loop([[108, 27], [170, 30], [168, 70], [110, 67]])); // small room
+    await draw(loop([[168, 70], [292, 68], [295, 150], [142, 147]])); // Bad, slanted
+    await draw([[25, 30], [25, 60]]); await draw([[25, 30], [40, 30]]); await draw([[25, 45], [36, 45]]); // "F"
+    await draw([[45, 82], [44, 100]]); await draw([[70, 83], [69, 101]]); // door ticks
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-skizze.png` });
+    await page.click("button:has-text('Zauberstab')");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-plan.png` });
+    // name the Flur and give it a size
+    await page.mouse.click(...at([60, 50]));
+    await page.waitForTimeout(400);
+    await page.click("[role=dialog] button:has-text('Flur')");
+    await page.fill("[role=dialog] input[inputmode=decimal]", "9");
+    await page.click("[role=dialog] button:has-text('Übernehmen')");
+    await page.waitForTimeout(1800);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-m2.png` });
+    const plan = JSON.parse(gh.files.get("hiwo.json").toString()).plan;
+    if (!plan || plan.rooms.length !== 3 || plan.doors.length !== 1 || !plan.rooms.some((r) => r.room_id === "r5" && r.area_m2 === 9))
+      errors.push(`${vp}-lageplan: unexpected plan ${JSON.stringify(plan)}`);
+    // reset for the next viewport
+    const d = JSON.parse(gh.files.get("hiwo.json").toString());
+    delete d.plan;
+    gh.files.set("hiwo.json", Buffer.from(JSON.stringify(d)));
+  }
   await ctx.close();
 }
 // logged-out screens
