@@ -1,4 +1,4 @@
-import type { HiwoDoc, RoomPhoto, ShoppingItem } from "./types";
+import type { CoverArtId, HiwoDoc, RoomPhoto, ShoppingItem } from "./types";
 
 export function basePhoto(doc: HiwoDoc, roomId: string): RoomPhoto | null {
   return doc.photos.find((p) => p.room_id === roomId && p.kind === "base") ?? null;
@@ -38,11 +38,14 @@ export function roomCards(doc: HiwoDoc): RoomCard[] {
   }));
 }
 
-export function homeCoverPath(doc: HiwoDoc): string | null {
-  if (doc.home.cover) return doc.home.cover.path;
+/** The home's title picture: an own photo, a chosen room photo or a drawn one, else the first room photo. */
+export function homeCover(doc: HiwoDoc): { path: string } | { art: CoverArtId } | null {
+  if (doc.home.cover) return { path: doc.home.cover.path };
   const explicit = doc.photos.find((p) => p.id === doc.home.cover_photo_id);
-  if (explicit) return explicit.path;
-  return roomCards(doc).find((r) => r.coverPath)?.coverPath ?? null;
+  if (explicit) return { path: explicit.path };
+  if (doc.home.cover_art) return { art: doc.home.cover_art };
+  const first = roomCards(doc).find((r) => r.coverPath)?.coverPath;
+  return first ? { path: first } : null;
 }
 
 /** Options for "Für …" selects: Wohnung, each room, each variant of a room. */

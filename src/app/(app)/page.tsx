@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { ChevronRight, ShoppingBag, Camera, Clock } from "lucide-react";
 import { useApp } from "@/components/app-context";
-import { homeCoverPath, roomCards } from "@/lib/selectors";
+import { homeCover, roomCards } from "@/lib/selectors";
 import { firstName, greeting, plural } from "@/lib/format";
 import { RoomCard } from "@/components/room-card";
-import { Photo } from "@/components/photo";
+import { HomeCover } from "@/components/cover-art";
 import { buttonClass } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
@@ -15,7 +15,7 @@ export default function HomePage() {
   const { home } = doc;
   const rooms = roomCards(doc);
   const openCount = doc.shopping.filter((s) => s.status === "open").length;
-  const coverPath = homeCoverPath(doc);
+  const cover = homeCover(doc);
 
   const recent = [...rooms].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const variantCount = rooms.reduce((n, r) => n + r.variantCount, 0);
@@ -35,8 +35,8 @@ export default function HomePage() {
 
       <Link href="/wohnung" className="group mt-6 block animate-fade-up">
         <div className="relative">
-          <Photo
-            path={coverPath}
+          <HomeCover
+            cover={cover}
             alt={home.name}
             className="aspect-[4/3] rounded-image md:aspect-[21/9]"
             imgClassName="transition duration-500 group-hover:scale-[1.01]"

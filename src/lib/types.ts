@@ -17,8 +17,12 @@ export type Home = {
   cover_photo_id: string | null;
   /** own title picture of the home (fotos/wohnung/<id>.jpg); wins over cover_photo_id */
   cover?: { path: string; sha: string } | null;
+  /** drawn title picture for the phase the home is in; the latest choice of the three wins */
+  cover_art?: CoverArtId | null;
   created_at: string;
 };
+
+export type CoverArtId = "entschieden" | "umzug" | "mittendrin" | "angekommen";
 
 export type Room = {
   id: string;

@@ -8,7 +8,7 @@ import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { removeFile, uploadPhoto } from "@/lib/store";
-import type { HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
+import type { CoverArtId, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
   const v = fd.get(key);
@@ -212,6 +212,18 @@ export function useActions() {
       await mutate("hiwo: Wohnungsbild gesetzt", (d) => {
         d.home.cover_photo_id = photoId;
         d.home.cover = null;
+        d.home.cover_art = null;
+      });
+      if (own) await removeFile(conn, own.path, own.sha, "hiwo: altes Titelbild").catch(() => {});
+    },
+
+    /** A drawn title picture for the home's phase; replaces an own or chosen photo. */
+    setHomeCoverArt: async (art: CoverArtId) => {
+      const own = doc.home.cover;
+      await mutate("hiwo: Titelbild gewählt", (d) => {
+        d.home.cover_art = art;
+        d.home.cover = null;
+        d.home.cover_photo_id = null;
       });
       if (own) await removeFile(conn, own.path, own.sha, "hiwo: altes Titelbild").catch(() => {});
     },
@@ -225,6 +237,7 @@ export function useActions() {
       await mutate(own ? "hiwo: Titelbild ersetzt" : "hiwo: Titelbild hinzugefügt", (d) => {
         d.home.cover = { path, sha };
         d.home.cover_photo_id = null;
+        d.home.cover_art = null;
       });
       if (own) await removeFile(conn, own.path, own.sha, "hiwo: altes Titelbild").catch(() => {});
     },
