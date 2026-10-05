@@ -27,7 +27,7 @@ export default function VariantPage() {
 function VariantView() {
   const id = useSearchParams().get("id") ?? "";
   const { doc } = useApp();
-  const [mode, setMode] = useState<"variant" | "compare" | "base">("variant");
+  const [mode, setMode] = useState<"variant" | "compare">("variant");
   const variant = doc.photos.find((p) => p.id === id && p.kind === "variant");
   const room = variant && doc.rooms.find((r) => r.id === variant.room_id);
   if (!variant || !room)
@@ -43,21 +43,12 @@ function VariantView() {
     );
   const base = basePhoto(doc, room.id);
   const items = doc.shopping.filter((s) => s.variant_id === variant.id);
-  const shown = mode === "base" && base ? base : variant;
 
   return (
     <div>
       <div className="relative md:pt-10">
-        {/* both photos stay loaded; the switch crossfades instead of reloading */}
         <div className="relative aspect-[4/3] overflow-hidden md:aspect-[21/9] md:rounded-image">
           <Photo path={variant.path} alt={variant.name ?? ""} className="absolute inset-0" />
-          {base && (
-            <Photo
-              path={base.path}
-              alt="Vorher"
-              className={cx("absolute inset-0 transition-opacity duration-300", mode === "base" ? "opacity-100" : "opacity-0")}
-            />
-          )}
           {base && mode === "compare" && <CompareSlider before={base.path} after={variant.path} className="animate-fade-in" />}
         </div>
         <Link
@@ -73,7 +64,6 @@ function VariantView() {
               [
                 ["variant", "Variante"],
                 ["compare", "Vergleich"],
-                ["base", "Vorher"],
               ] as const
             ).map(([m, label]) => (
               <button
@@ -86,8 +76,7 @@ function VariantView() {
             ))}
           </div>
         )}
-        {/* draws on whichever photo is showing (the variant while comparing) */}
-        <PhotoTools sourceId={shown.id} path={shown.path} />
+        <PhotoTools sourceId={variant.id} path={variant.path} />
       </div>
 
       <div className="px-4 md:px-0">
