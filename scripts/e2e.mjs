@@ -125,6 +125,7 @@ for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].e
 }
 const wohnzimmer = doc().rooms.find((r) => r.name === "Wohnzimmer");
 let sketchCheck = null;
+let replaceCheck = null;
 await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
 await page.waitForSelector("text=Ausgangszustand");
 for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
@@ -219,6 +220,20 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
     await page.fill("input[placeholder^='z.B. Sofa']", "Samtsessel");
     await page.press("input[placeholder^='z.B. Sofa']", "Enter");
     await page.waitForSelector("li:has-text('Samtsessel')");
+    // a new picture for the variant: id, name and list stay, the old file goes
+    const v = doc().photos.find((p) => p.kind === "variant" && p.name === "Variante 2");
+    await page.click("button[aria-label='Variante bearbeiten']");
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("[role=dialog] button:has-text('Bild ersetzen')")]);
+    await chooser.setFiles(`${OUT}/room3.jpg`);
+    await page.waitForSelector("[role=dialog]", { state: "detached", timeout: 20000 });
+    const nv = doc().photos.find((p) => p.id === v.id);
+    replaceCheck = {
+      samePhotoId: !!nv,
+      newPath: nv?.path !== v.path,
+      oldFileGone: !gh.files.has(v.path),
+      newFileThere: gh.files.has(nv?.path),
+      listKept: doc().shopping.some((s) => s.variant_id === v.id && s.name === "Samtsessel"),
+    };
   }
   await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
   await page.waitForSelector("text=Ausgangszustand");
@@ -376,6 +391,7 @@ const summary = {
   concurrent,
   reorder,
   sketchCheck,
+  replaceCheck,
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
   variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),
