@@ -160,7 +160,7 @@ const PAGES = {
 const only = process.env.SCREENS_ONLY?.split(",");
 const errors = [];
 for (const [vp, size] of Object.entries(VIEWPORTS)) {
-  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 2, locale: "de-DE" });
+  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 2, locale: "de-DE", hasTouch: vp === "phone" });
   await ctx.addInitScript(([repo, token]) => {
     localStorage.setItem("hiwo_connection", JSON.stringify({ repo, token, memberId: "m1" }));
     sessionStorage.setItem("hiwo_intro", "1"); // skip the splash animation
@@ -244,6 +244,30 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     const plan = JSON.parse(gh.files.get("hiwo.json").toString()).plan;
     if (!plan || plan.rooms.length !== 3 || plan.doors.length !== 1 || !plan.rooms.some((r) => r.room_id === "r5" && r.area_m2 === 9))
       errors.push(`${vp}-lageplan: unexpected plan ${JSON.stringify(plan)}`);
+    // two fingers: spread to zoom in, then move
+    if (vp === "phone") {
+      const cdp = await ctx.newCDPSession(page);
+      const before = await page.locator(".plan-room").first().boundingBox();
+      const [cx, cy] = at([150, 80]);
+      const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
+      await touch("touchStart", [[cx - 20, cy], [cx + 20, cy]]);
+      // fingers 40px → 100px apart: 2.5× bigger
+      for (let i = 1; i <= 10; i++) await touch("touchMove", [[cx - 20 - i * 3, cy], [cx + 20 + i * 3, cy]]);
+      await touch("touchEnd", []);
+      const zoomed = await page.locator(".plan-room").first().boundingBox();
+      // both fingers 50px down: the plan follows
+      await touch("touchStart", [[cx - 30, cy], [cx + 30, cy]]);
+      for (let i = 1; i <= 5; i++) await touch("touchMove", [[cx - 30, cy + i * 10], [cx + 30, cy + i * 10]]);
+      await touch("touchEnd", []);
+      await page.waitForTimeout(300);
+      const moved = await page.locator(".plan-room").first().boundingBox();
+      const ratio = zoomed.width / before.width;
+      if (Math.abs(ratio - 2.5) > 0.15 || Math.abs(moved.y - zoomed.y - 50) > 3 || Math.abs(moved.x - zoomed.x) > 3)
+        errors.push(`${vp}-lageplan: pinch ${JSON.stringify({ before, zoomed, moved })}`);
+      await page.screenshot({ path: `${OUT}/${vp}-lageplan-zoom.png` });
+      const strokes = JSON.parse(gh.files.get("hiwo.json").toString()).plan.rooms.length;
+      if (strokes !== 3) errors.push(`${vp}-lageplan: pinch changed the plan`);
+    }
     // reset for the next viewport
     const d = JSON.parse(gh.files.get("hiwo.json").toString());
     delete d.plan;

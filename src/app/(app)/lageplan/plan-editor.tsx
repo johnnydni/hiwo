@@ -20,6 +20,8 @@ type State = { rooms: PlanRoom[]; doors: PlanDoor[]; strokes: Pt[][] };
 type View = { s: number; x: number; y: number };
 
 const SAVE_DELAY = 700;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 8;
 
 export function PlanEditor() {
   const { doc } = useApp();
@@ -96,12 +98,47 @@ export function PlanEditor() {
   }, [view, size, fit, state]);
 
   // -- pointer -------------------------------------------------------------------
+  // One finger draws, erases or taps; two fingers move and zoom the plan.
   const gesture = useRef<{ id: number; start: Pt; moved: boolean } | null>(null);
-  const toWorld = (e: React.PointerEvent): Pt => {
+  const fingers = useRef(new Map<number, Pt>());
+  const pinch = useRef<{ view: View; mid: Pt; dist: number } | null>(null);
+  // after a pinch, the finger left on the glass draws nothing until all are up
+  const pinched = useRef(false);
+  const toScreen = (e: { clientX: number; clientY: number }): Pt => {
     const r = svg.current!.getBoundingClientRect();
-    const v = view ?? { s: 1, x: 0, y: 0 };
-    return [(e.clientX - r.left - v.x) / v.s, (e.clientY - r.top - v.y) / v.s];
+    return [e.clientX - r.left, e.clientY - r.top];
   };
+  const toWorld = (e: React.PointerEvent): Pt => {
+    const [x, y] = toScreen(e);
+    const v = view ?? { s: 1, x: 0, y: 0 };
+    return [(x - v.x) / v.s, (y - v.y) / v.s];
+  };
+  /** `v` zoomed by `factor` around the screen point `at` */
+  const zoom = (v: View, factor: number, at: Pt): View => {
+    const s = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.s * factor));
+    const f = s / v.s;
+    return { s, x: at[0] - (at[0] - v.x) * f, y: at[1] - (at[1] - v.y) * f };
+  };
+  const twoFingers = () => {
+    const [a, b] = [...fingers.current.values()];
+    return { mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as Pt, dist: Math.max(1, Math.hypot(a[0] - b[0], a[1] - b[1])) };
+  };
+
+  // desktop: ctrl + wheel (and trackpad pinch) zooms, the wheel moves
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setView((v) => {
+        if (!v) return v;
+        if (e.ctrlKey || e.metaKey) return zoom(v, Math.exp(-e.deltaY * 0.01), toScreen(e));
+        return { ...v, x: v.x - e.deltaX, y: v.y - e.deltaY };
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   const px = 1 / (view?.s ?? 1);
 
   /** Removes strokes and doors under `p`; null if nothing was there. */
@@ -114,8 +151,19 @@ export function PlanEditor() {
   };
 
   const onDown = (e: React.PointerEvent) => {
-    if (gesture.current || !view) return;
+    if (!view) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    fingers.current.set(e.pointerId, toScreen(e));
+    if (fingers.current.size === 2) {
+      // second finger: whatever the first one started is dropped, the plan moves
+      gesture.current = null;
+      setDraft(null);
+      setLive(null);
+      pinched.current = true;
+      pinch.current = { view, ...twoFingers() };
+      return;
+    }
+    if (gesture.current || pinched.current) return;
     const p = toWorld(e);
     gesture.current = { id: e.pointerId, start: p, moved: false };
     setHint(null);
@@ -123,6 +171,14 @@ export function PlanEditor() {
     if (tool === "eraser") setLive(eraseAt(state, p));
   };
   const onMove = (e: React.PointerEvent) => {
+    if (fingers.current.has(e.pointerId)) fingers.current.set(e.pointerId, toScreen(e));
+    const pz = pinch.current;
+    if (pz && fingers.current.size >= 2) {
+      const { mid, dist } = twoFingers();
+      const moved = { ...pz.view, x: pz.view.x + mid[0] - pz.mid[0], y: pz.view.y + mid[1] - pz.mid[1] };
+      setView(zoom(moved, dist / pz.dist, mid));
+      return;
+    }
     const g = gesture.current;
     if (!g || g.id !== e.pointerId) return;
     const p = toWorld(e);
@@ -139,6 +195,9 @@ export function PlanEditor() {
     }
   };
   const onUp = (e: React.PointerEvent) => {
+    fingers.current.delete(e.pointerId);
+    if (fingers.current.size < 2) pinch.current = null;
+    if (!fingers.current.size) pinched.current = false;
     const g = gesture.current;
     if (!g || g.id !== e.pointerId) return;
     gesture.current = null;
@@ -277,7 +336,7 @@ export function PlanEditor() {
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
             <p className="font-serif text-[26px] leading-tight text-ink/70">Zeichne deine Wohnung von oben.</p>
             <p className="mt-2 max-w-xs text-[14px] leading-relaxed text-muted">
-              Jeden Raum als grobes Rechteck, Türen als zwei kurze Striche an der Wand. Dann tippst du auf den Zauberstab.
+              Jeden Raum als grobes Rechteck, Türen als zwei kurze Striche an der Wand. Dann tippst du auf den Zauberstab. Mit zwei Fingern verschiebst und zoomst du.
             </p>
           </div>
         )}
