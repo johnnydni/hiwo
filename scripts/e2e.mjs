@@ -108,40 +108,68 @@ await page.waitForURL(HOME_URL);
 await page.waitForSelector("text=Noch keine Zimmer");
 await shot("03-home-empty");
 
-// rooms
+// rooms: base photo first, then variants with their own list
 for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].entries()) {
   await page.goto(`${BASE}/wohnung`);
   await page.click("button[aria-label='Zimmer hinzufügen']");
   await page.click(`button:has-text('${name}')`);
   await page.click("form button:has-text('Zimmer hinzufügen')");
   await page.waitForURL(/\/zimmer\/?\?id=/);
+  await page.waitForSelector(`text=So sieht ${name} jetzt aus`);
   if (i === 0) await shot("04-room-empty");
-  const fileInput = page.locator("input[type=file]").first();
-  await fileInput.setInputFiles(i === 0 ? [`${OUT}/room0.jpg`, `${OUT}/room1.jpg`, `${OUT}/room2.jpg`] : [`${OUT}/room${i}.jpg`]);
-  await page.waitForSelector("text=Titelbild", { timeout: 20000 });
-  if (i === 0) {
-    for (const f of ["Sofa", "TV Board", "Couchtisch", "Teppich", "Lampe"]) {
-      await page.fill("input[name=name]", f);
-      await page.press("input[name=name]", "Enter");
+  await page.locator("input[type=file]").first().setInputFiles(`${OUT}/room${i}.jpg`);
+  await page.waitForSelector("text=Ausgangszustand", { timeout: 20000 });
+}
+const wohnzimmer = doc().rooms.find((r) => r.name === "Wohnzimmer");
+await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
+await page.waitForSelector("text=Ausgangszustand");
+for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
+  await page.locator("input[type=file]").nth(1).setInputFiles(`${OUT}/${file}`);
+  await page.waitForURL(/\/variante\/?\?id=/, { timeout: 20000 });
+  await page.waitForSelector(`h1:has-text('Variante ${k + 1}')`);
+  if (k === 0) {
+    // name it and fill its list
+    await page.click("button[aria-label='Variante bearbeiten']");
+    await page.fill("input[name=name]", "Japandi");
+    await page.fill("textarea[name=note]", "Hell, Holz, wenig Zeug.");
+    await page.click("button:has-text('Speichern')");
+    await page.waitForSelector("h1:has-text('Japandi')");
+    for (const f of ["Leinensofa", "Couchtisch Eiche", "Papierleuchte"]) {
+      await page.fill("input[placeholder^='z.B. Sofa']", f);
+      await page.press("input[placeholder^='z.B. Sofa']", "Enter");
       await page.waitForSelector(`li:has-text('${f}')`);
     }
-    await shot("05-room-detail");
-    // photo actions
-    await page.locator("button:has(img)").nth(1).click();
-    await page.click("text=Als Bild der Wohnung");
-    await page.waitForTimeout(800);
+    await shot("05-variant");
+    await page.click("button:has-text('Vorher')");
+    await page.waitForTimeout(600);
+    await shot("05b-variant-before");
+    await page.click("button:has-text('Variante')");
+  } else {
+    await page.fill("input[placeholder^='z.B. Sofa']", "Samtsessel");
+    await page.press("input[placeholder^='z.B. Sofa']", "Enter");
+    await page.waitForSelector("li:has-text('Samtsessel')");
   }
+  await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
+  await page.waitForSelector("text=Ausgangszustand");
 }
+await page.fill("input[placeholder^='z.B. Glühbirnen']", "Glühbirnen E27");
+await page.press("input[placeholder^='z.B. Glühbirnen']", "Enter");
+await page.waitForSelector("li:has-text('Glühbirnen E27')");
+await page.waitForTimeout(600);
+await shot("06-room-detail");
+await page.click("button[aria-label='Ausgangsfoto']");
+await page.click("text=Als Bild der Wohnung");
+await page.waitForTimeout(800);
 await page.goto(`${BASE}/wohnung`);
-await page.waitForTimeout(500);
-await shot("06-rooms");
+await page.waitForTimeout(800);
+await shot("06b-rooms");
 
 // shopping
 await page.goto(`${BASE}/einkauf`);
 const add = async (name, room, price) => {
   await page.click("button:has-text('Artikel hinzufügen')");
   await page.fill("input[name=name]", name);
-  if (room) await page.selectOption("select[name=room_id]", { label: room });
+  if (room) await page.selectOption("select[name=target]", { label: room });
   if (price) {
     if (await page.isVisible("text=+ Preis, Link oder Notiz")) await page.click("text=+ Preis, Link oder Notiz");
     await page.fill("input[name=price]", price);
@@ -151,8 +179,8 @@ const add = async (name, room, price) => {
 };
 await add("Vorhänge", null, "12,99");
 await add("Pflanzen", null, "24,90");
-await add("Stehlampe", "Wohnzimmer", "89,90");
-await add("Teppich", "Wohnzimmer", "129");
+await add("Stehlampe", "Wohnzimmer · Japandi", "89,90");
+await add("Teppich", "Wohnzimmer allgemein", "129");
 await add("Nachttisch", "Schlafzimmer");
 await shot("07-shopping");
 await page.locator("li:has-text('Pflanzen') button[aria-label='Als erledigt markieren']").click();
@@ -181,10 +209,6 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(400);
 await page.goto(`${BASE}/profil`);
 await shot("13-profile");
-await page.goto(`${BASE}/wohnung`);
-await page.click("button[aria-label='hiwo fragen']");
-await page.waitForTimeout(400);
-await shot("14-ai");
 
 // second person: Nadin opens the invite link on her phone
 const ctx2 = await newPhone();
@@ -267,6 +291,9 @@ const summary = {
   concurrent,
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
+  variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),
+  japandiList: final.shopping.filter((s) => s.variant_id === final.photos.find((p) => p.name === "Japandi")?.id).map((s) => s.name),
+  schema: final.schema,
   photoFiles: { before, after },
   photosInDoc: final.photos.length,
   shopping: final.shopping.length,

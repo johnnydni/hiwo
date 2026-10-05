@@ -4,6 +4,7 @@ import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Plus } from "lucide-react";
 import { useActions } from "@/components/use-actions";
+import { TargetSelect, useTargetLabel } from "@/components/target-select";
 import { Photo } from "@/components/photo";
 import { formatPrice } from "@/lib/format";
 import type { ShoppingItem } from "@/lib/types";
@@ -91,7 +92,7 @@ export function ShoppingList({
       <div className="mt-6 space-y-7">
         {groups.length === 0 && !done.length && (
           <EmptyState title="Alles da." action={<Button onClick={() => setAdding(true)}><Plus size={18} /> Artikel hinzufügen</Button>}>
-            Was fehlt noch in deinem Zuhause? Setz es auf die Liste, alle in der Wohnung sehen es sofort.
+            Was fehlt noch in deinem Zuhause? Setz es auf die Liste, dann seht ihr es beide.
           </EmptyState>
         )}
         {groups.map((g) => (
@@ -99,7 +100,7 @@ export function ShoppingList({
             {g.title && <h2 className="mb-2 text-[13px] font-medium tracking-wide text-muted uppercase">{g.title}</h2>}
             <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
               {g.items.map((it) => (
-                <Row key={it.id} item={it} rooms={rooms} onToggle={() => toggle(it)} />
+                <Row key={it.id} item={it} onToggle={() => toggle(it)} />
               ))}
             </ul>
           </section>
@@ -113,7 +114,7 @@ export function ShoppingList({
             {showDone && (
               <ul className="divide-y divide-line rounded-card bg-card/60 px-4">
                 {done.map((it) => (
-                  <Row key={it.id} item={it} rooms={rooms} onToggle={() => toggle(it)} />
+                  <Row key={it.id} item={it} onToggle={() => toggle(it)} />
                 ))}
               </ul>
             )}
@@ -137,17 +138,15 @@ export function ShoppingList({
       <AddItemSheet
         open={adding}
         onClose={() => setAdding(false)}
-        rooms={rooms}
         defaultRoom={mode === "room" ? room : null}
       />
     </div>
   );
 }
 
-function Row({ item, rooms, onToggle }: { item: Item; rooms: Room[]; onToggle: () => void }) {
+function Row({ item, onToggle }: { item: Item; onToggle: () => void }) {
   const done = item.status === "done";
-  const roomName = rooms.find((r) => r.id === item.room_id)?.name ?? "Wohnung";
-  const meta = [roomName, formatPrice(item.price_cents)].filter(Boolean).join(" · ");
+  const meta = [useTargetLabel()(item), formatPrice(item.price_cents)].filter(Boolean).join(" · ");
   return (
     <li className="flex items-center gap-3 py-3">
       <button
@@ -175,12 +174,10 @@ function Row({ item, rooms, onToggle }: { item: Item; rooms: Room[]; onToggle: (
 function AddItemSheet({
   open,
   onClose,
-  rooms,
   defaultRoom,
 }: {
   open: boolean;
   onClose: () => void;
-  rooms: Room[];
   defaultRoom: string | null;
 }) {
   const form = useRef<HTMLFormElement>(null);
@@ -203,21 +200,7 @@ function AddItemSheet({
         className="space-y-4"
       >
         <Input name="name" placeholder="Was brauchst du?" required autoFocus />
-        <label className="block">
-          <Label>Für</Label>
-          <select
-            name="room_id"
-            defaultValue={defaultRoom ?? ""}
-            className="h-12 w-full rounded-input border border-line bg-card px-4 text-[15px] outline-none"
-          >
-            <option value="">Gesamte Wohnung</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <TargetSelect key={defaultRoom ?? ""} defaultValue={defaultRoom ?? ""} />
         {more ? (
           <>
             <label className="block">

@@ -44,7 +44,7 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
             disabled={pending}
             className="w-full py-3 text-[14px] text-terracotta"
           >
-            {confirm ? "Zimmer mit allen Fotos wirklich löschen?" : "Zimmer löschen"}
+            {confirm ? "Zimmer mit allen Fotos und Varianten wirklich löschen?" : "Zimmer löschen"}
           </button>
         </div>
       </Sheet>

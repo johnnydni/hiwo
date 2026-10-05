@@ -3,13 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ImagePlus, Loader2, RotateCcw } from "lucide-react";
-import { useActions } from "@/components/use-actions";
+import { targetValue, useActions } from "@/components/use-actions";
+import { TargetSelect } from "@/components/target-select";
 import { usePhotoUrl } from "@/components/app-context";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 
-export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: string; name: string }[] }) {
+export function ItemActions({ item }: { item: ShoppingItem }) {
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -54,19 +55,7 @@ export function ItemActions({ item, rooms }: { item: ShoppingItem; rooms: { id: 
           className="space-y-4"
         >
           <Input name="name" defaultValue={item.name} required />
-          <label className="block">
-            <Label>Für</Label>
-            <select
-              name="room_id"
-              defaultValue={item.room_id ?? ""}
-              className="h-12 w-full rounded-input border border-line bg-card px-4 text-[15px] outline-none"
-            >
-              <option value="">Gesamte Wohnung</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </label>
+          <TargetSelect defaultValue={targetValue(item)} />
           <label className="block">
             <Label>Preis</Label>
             <Input

@@ -1,12 +1,12 @@
 # hiwo – hier wohne ich.
 
-Mobile-first Web-App für das eigene Zuhause: Wohnung und Zimmer verwalten, Fotos sammeln, Einrichtung festhalten und gemeinsame Einkaufslisten mit Familie oder Mitbewohnern pflegen. KI-Varianten folgen in Phase 2.
+Mobile-first Web-App, um Zimmer gemeinsam einzurichten: Pro Zimmer ein Foto vom Ist-Zustand, darunter beliebig viele Varianten (eigene Fotos, Moodboards, Screenshots), und zu jeder Variante eine eigene Einkaufsliste.
 
 **Stack:** Next.js 15 als statischer Export · TypeScript · Tailwind CSS 4 · Lucide Icons
 
 hiwo braucht keinen Server und keine Datenbank: Die App ist reines HTML/JS (läuft auf GitHub Pages) und speichert alles in einem **privaten GitHub-Repo** (z.B. `hiwo-daten`). Der Browser spricht direkt mit der GitHub-API.
 
-## Stand: Phase 1
+## Stand
 
 | Bereich | Status |
 | --- | --- |
@@ -14,18 +14,18 @@ hiwo braucht keinen Server und keine Datenbank: Die App ist reines HTML/JS (läu
 | Onboarding: Name, Wohnung, Stadt; Beitreten per Link („Wer bist du?“) | ✓ |
 | Home-Dashboard (Begrüßung, Wohnungsbild, Heute, Zuletzt bearbeitet) | ✓ |
 | Zimmerübersicht (Foto-Grid), Zimmer anlegen/umbenennen/löschen | ✓ |
-| Zimmerdetail: Fotos hochladen (verkleinert im Browser), Titelbild, Wohnungsbild, löschen | ✓ |
-| Meine Einrichtung (Möbelliste pro Zimmer) | ✓ |
+| Zimmer: ein Ausgangsfoto (ersetzen, löschen, als Wohnungsbild) | ✓ |
+| Varianten: Foto hochladen, Name, Notiz, Vorher/Nachher-Umschalter | ✓ |
+| Einkaufsliste pro Variante und „für das Zimmer allgemein“, schnelles Hinzufügen | ✓ |
 | Einkauf: Gesamte Wohnung / Nach Zimmer, abhaken, Preis, Link, Notiz, Produktfoto, Abgleich alle 30 s | ✓ |
 | Mitbewohner: Einladung per Link (teilen/kopieren) | ✓ |
-| Profil & Einstellungen | ✓ (KI/Benachrichtigungen/Darstellung als „bald“) |
-| KI-Assistent (FAB + im Zimmer) | Oberfläche da, Generierung Phase 2 |
+| Profil & Einstellungen | ✓ |
 
 ## Datenmodell
 
 ```
 hiwo-daten/            (privates Repo)
-├── hiwo.json          home · members · rooms · photos · furniture · shopping · versions · generations
+├── hiwo.json          home · members · rooms · photos (kind: base | variant) · shopping (room_id, variant_id)
 └── fotos/
     ├── <zimmer-id>/<foto-id>.jpg
     └── einkauf/<artikel-id>-<zeit>.jpg

@@ -21,18 +21,23 @@ export type Home = {
 export type Room = {
   id: string;
   name: string;
-  cover_photo_id: string | null;
-  /** phase 2: "aktueller Entwurf" */
-  current_version_id: string | null;
   position: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
 
+/**
+ * A room has one base photo (how it looks today) and any number of variants
+ * (photos of how it could look). Each variant can carry its own shopping list.
+ */
 export type RoomPhoto = {
   id: string;
   room_id: string;
+  kind: "base" | "variant";
+  /** variants only, e.g. "Japandi" */
+  name: string | null;
+  note: string | null;
   /** path inside the data repo, e.g. fotos/<room>/<id>.jpg */
   path: string;
   /** git blob sha, needed to delete the file */
@@ -43,22 +48,12 @@ export type RoomPhoto = {
   created_at: string;
 };
 
-export type FurnitureItem = {
-  id: string;
-  room_id: string;
-  name: string;
-  note: string | null;
-  /** phase 2: KI soll dieses Möbel behalten */
-  keep: boolean;
-  position: number;
-  created_by: string | null;
-  created_at: string;
-};
-
 export type ShoppingItem = {
   id: string;
   /** null = Gesamte Wohnung */
   room_id: string | null;
+  /** set when the item belongs to one variant of the room */
+  variant_id: string | null;
   name: string;
   price_cents: number | null;
   note: string | null;
@@ -72,44 +67,11 @@ export type ShoppingItem = {
   created_at: string;
 };
 
-/** Phase 2: a saved variant of a room. The original photo is never overwritten. */
-export type RoomVersion = {
-  id: string;
-  room_id: string;
-  name: string;
-  description: string | null;
-  image_path: string | null;
-  source_photo_id: string | null;
-  parent_version_id: string | null;
-  generation_id: string | null;
-  created_by: string | null;
-  created_at: string;
-};
-
-/** Phase 2: one AI run; becomes a RoomVersion only when the user saves it. */
-export type AiGeneration = {
-  id: string;
-  room_id: string;
-  source_photo_id: string | null;
-  parent_version_id: string | null;
-  prompt: string;
-  kept_furniture_ids: string[];
-  status: "queued" | "running" | "succeeded" | "failed" | "discarded";
-  generated_image_path: string | null;
-  model: string | null;
-  error: string | null;
-  created_by: string | null;
-  created_at: string;
-};
-
 export type HiwoDoc = {
-  schema: 1;
+  schema: 2;
   home: Home;
   members: Member[];
   rooms: Room[];
   photos: RoomPhoto[];
-  furniture: FurnitureItem[];
   shopping: ShoppingItem[];
-  versions: RoomVersion[];
-  generations: AiGeneration[];
 };

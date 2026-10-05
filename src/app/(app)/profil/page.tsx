@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Home, Users, ShoppingBag, Sparkles, Bell, Palette, CircleHelp, LogOut, Database } from "lucide-react";
+import { ChevronRight, Home, Users, ShoppingBag, LogOut, Database } from "lucide-react";
 import { useApp } from "@/components/app-context";
 import { clearConnection } from "@/lib/connection";
 import { plural } from "@/lib/format";
@@ -33,13 +33,6 @@ export default function ProfilPage() {
         <Row href="/profil/mitbewohner" icon={Users} label="Mitbewohner" sub={plural(members, "Person", "Personen")} />
         <Row href="/einkauf" icon={ShoppingBag} label="Einkaufslisten" />
         <Row href={`https://github.com/${conn.repo}`} icon={Database} label="Gespeichert in" sub={conn.repo} />
-      </ul>
-
-      <ul className="mt-4 divide-y divide-line rounded-card bg-card px-4 shadow-soft">
-        <Row icon={Sparkles} label="KI-Einstellungen" sub="Bald verfügbar" />
-        <Row icon={Bell} label="Benachrichtigungen" sub="Bald verfügbar" />
-        <Row icon={Palette} label="Design & Darstellung" sub="Bald verfügbar" />
-        <Row href="mailto:hallo@hiwo.app" icon={CircleHelp} label="Hilfe & Support" />
       </ul>
 
       <div className="mt-4">

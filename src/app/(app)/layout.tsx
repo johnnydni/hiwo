@@ -1,7 +1,6 @@
 "use client";
 
 import { BottomNav, SideNav } from "@/components/nav";
-import { AiFab } from "@/components/ai-assistant";
 import { AppProvider } from "@/components/app-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -11,7 +10,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SideNav />
         <main className="mx-auto w-full max-w-5xl flex-1 pb-28 md:px-10 md:pb-16">{children}</main>
         <BottomNav />
-        <AiFab />
       </div>
     </AppProvider>
   );
