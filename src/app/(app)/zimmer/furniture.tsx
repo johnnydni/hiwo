@@ -2,14 +2,13 @@
 
 import { useRef, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { addFurniture, deleteFurniture } from "@/lib/api";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
 import type { FurnitureItem } from "@/lib/types";
 
 export function Furniture({ roomId, items }: { roomId: string; items: FurnitureItem[] }) {
   const form = useRef<HTMLFormElement>(null);
   const [pending, start] = useTransition();
-  const app = useApp();
+  const { addFurniture, deleteFurniture } = useActions();
   return (
     <div className="rounded-card bg-card px-4 shadow-soft">
       <ul className="divide-y divide-line">
@@ -22,7 +21,6 @@ export function Furniture({ roomId, items }: { roomId: string; items: FurnitureI
               onClick={() =>
                 start(async () => {
                   await deleteFurniture(it.id);
-                  app.bump();
                 })
               }
               disabled={pending}
@@ -40,8 +38,7 @@ export function Furniture({ roomId, items }: { roomId: string; items: FurnitureI
           const input = form.current!.elements.namedItem("name") as HTMLInputElement;
           const name = input.value;
           input.value = "";
-          await addFurniture(app, roomId, name);
-          app.bump();
+          if (name.trim()) await addFurniture(roomId, name);
         }}
         className={`flex items-center gap-3 py-2 ${items.length ? "border-t border-line" : ""}`}
       >

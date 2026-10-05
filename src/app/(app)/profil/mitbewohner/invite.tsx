@@ -2,42 +2,42 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, MoreHorizontal, Plus, Share2 } from "lucide-react";
-import { createInvite, deleteInvite, removeMember } from "@/lib/api";
-import { appUrl } from "@/lib/supabase";
 import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
+import { encodeInvite } from "@/lib/connection";
+import { appUrl } from "@/lib/paths";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label } from "@/components/ui";
 
-function inviteUrl(token: string) {
-  return appUrl(`/einladung/?t=${token}`);
-}
-
-async function share(token: string, name?: string) {
-  const url = inviteUrl(token);
-  const text = `${name ? `Hallo ${name}, ` : ""}komm mit in unsere Wohnung auf hiwo:`;
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: "hiwo", text, url });
-      return "shared";
-    } catch {
-      /* cancelled */
-    }
-  }
-  await navigator.clipboard.writeText(url);
-  return "copied";
-}
-
 export function InviteButton() {
+  const { conn } = useApp();
   const [open, setOpen] = useState(false);
-  const [result, setResult] = useState<{ token: string; name: string } | null>(null);
+  const [name, setName] = useState("");
   const [copied, setCopied] = useState(false);
-  const [pending, start] = useTransition();
-  const app = useApp();
+  // the fragment (#…) never leaves the browser, so the token is not sent to the web server
+  const inviteUrl = () => `${appUrl("/einladung/")}#${encodeInvite(conn)}`;
   const close = () => {
     setOpen(false);
-    setResult(null);
     setCopied(false);
   };
+
+  async function copy() {
+    await navigator.clipboard.writeText(inviteUrl());
+    setCopied(true);
+  }
+
+  async function share() {
+    const text = `${name.trim() ? `Hallo ${name.trim()}, ` : ""}komm mit in unsere Wohnung auf hiwo:`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "hiwo", text, url: inviteUrl() });
+        return;
+      } catch {
+        /* cancelled or unsupported: fall back to copying */
+      }
+    }
+    await copy();
+  }
 
   return (
     <>
@@ -47,116 +47,34 @@ export function InviteButton() {
         </span>
         Person einladen
       </button>
-      <Sheet open={open} onClose={close} title={result ? undefined : "Person einladen"}>
-        {result ? (
-          <div className="animate-fade-up py-4 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sage text-white">
-              <Check size={22} className="animate-pop" />
-            </span>
-            <p className="mt-4 font-serif text-[26px]">{result.name} wurde eingeladen.</p>
-            <p className="mx-auto mt-2 max-w-xs text-[14px] text-muted">
-              Schick den Link per WhatsApp, SMS oder Mail. Wer ihn öffnet und sich anmeldet, ist dabei.
-            </p>
-            <div className="mt-6 space-y-3">
-              <Button
-                className="w-full"
-                onClick={async () => {
-                  const r = await share(result.token, result.name);
-                  if (r === "copied") setCopied(true);
-                }}
-              >
-                <Share2 size={17} /> Link teilen
-              </Button>
-              <Button
-                variant="secondary"
-                className="w-full"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(inviteUrl(result.token));
-                  setCopied(true);
-                }}
-              >
-                {copied ? <Check size={17} /> : <Copy size={17} />} {copied ? "Kopiert" : "Link kopieren"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const fd = new FormData(e.currentTarget);
-              start(async () => {
-                setResult(await createInvite(app, fd));
-                app.bump();
-              });
-            }}
-            className="space-y-4"
-          >
-            <p className="text-[14px] leading-relaxed text-muted">
-              Lade Familie oder Mitbewohner ein, um gemeinsam an eurer Wohnung zu arbeiten.
-            </p>
-            <label className="block">
-              <Label>Name</Label>
-              <Input name="name" placeholder="z.B. Nadin" />
-            </label>
-            <label className="block">
-              <Label>E-Mail oder Telefonnummer</Label>
-              <Input name="contact" placeholder="optional" />
-            </label>
-            <label className="block">
-              <Label>Rolle</Label>
-              <select disabled className="h-12 w-full rounded-input border border-line bg-card px-4 text-[15px] text-muted">
-                <option>Mitglied</option>
-              </select>
-            </label>
-            <Button className="w-full" disabled={pending}>Einladen</Button>
-            <p className="text-center text-[12px] text-faint">
-              Mit E-Mail-Adresse tritt die Person automatisch bei, sobald sie sich mit dieser Adresse anmeldet.
-            </p>
-          </form>
-        )}
+      <Sheet open={open} onClose={close} title="Person einladen">
+        <div className="space-y-4">
+          <p className="text-[14px] leading-relaxed text-muted">
+            Schick den Link per WhatsApp, SMS oder Mail. Wer ihn öffnet, gibt seinen Namen ein und ist dabei.
+          </p>
+          <label className="block">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z.B. Nadin (optional)" />
+          </label>
+          <Button className="w-full" onClick={share}>
+            <Share2 size={17} /> Link teilen
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={copy}>
+            {copied ? <Check size={17} /> : <Copy size={17} />} {copied ? "Kopiert" : "Link kopieren"}
+          </Button>
+          <p className="text-center text-[12px] leading-relaxed text-faint">
+            Der Link enthält den Schlüssel zu euren Daten. Teil ihn nur mit Menschen, die mitplanen sollen.
+          </p>
+        </div>
       </Sheet>
     </>
   );
 }
 
-export function InviteRowActions({ id, token }: { id: string; token: string }) {
-  const [pending, start] = useTransition();
-  const { bump } = useApp();
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex items-center gap-1">
-      <button
-        aria-label="Link teilen"
-        onClick={async () => {
-          if ((await share(token)) === "copied") {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }
-        }}
-        className="rounded-full p-2 text-muted hover:text-ink"
-      >
-        {copied ? <Check size={17} /> : <Share2 size={17} strokeWidth={1.6} />}
-      </button>
-      <button
-        onClick={() =>
-          start(async () => {
-            await deleteInvite(id);
-            bump();
-          })
-        }
-        disabled={pending}
-        className="rounded-full px-2 py-1 text-[13px] text-muted hover:text-terracotta"
-      >
-        Zurückziehen
-      </button>
-    </div>
-  );
-}
-
-export function MemberRowActions({ userId, name }: { userId: string; name: string }) {
+export function MemberRowActions({ memberId, name }: { memberId: string; name: string }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  const app = useApp();
+  const { removeMember } = useActions();
   return (
     <>
       <button aria-label="Mehr" onClick={() => setOpen(true)} className="rounded-full p-2 text-muted hover:text-ink">
@@ -169,14 +87,17 @@ export function MemberRowActions({ userId, name }: { userId: string; name: strin
           disabled={pending}
           onClick={() =>
             start(async () => {
-              await removeMember(app, userId);
+              await removeMember(memberId).catch(() => {});
               setOpen(false);
-              app.bump();
             })
           }
         >
           Aus der Wohnung entfernen
         </Button>
+        <p className="mt-3 text-center text-[12px] leading-relaxed text-faint">
+          {name} verschwindet aus der Liste. Wer den Einladungslink noch hat, kommt aber weiter an die Daten, bis du
+          auf GitHub einen neuen Schlüssel erstellst.
+        </p>
       </Sheet>
     </>
   );

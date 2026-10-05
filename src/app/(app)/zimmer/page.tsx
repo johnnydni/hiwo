@@ -4,11 +4,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronRight } from "lucide-react";
-import { signPaths } from "@/lib/data";
-import { useApp, useData } from "@/components/app-context";
+import { useApp } from "@/components/app-context";
 import { formatPrice, plural } from "@/lib/format";
-import type { FurnitureItem, RoomPhoto, ShoppingItem } from "@/lib/types";
-import { EmptyState, PhotoPlaceholder, buttonClass } from "@/components/ui";
+import { roomCover, roomPhotos } from "@/lib/selectors";
+import { EmptyState, buttonClass } from "@/components/ui";
+import { Photo } from "@/components/photo";
 import { PhotoUploadButton, PhotoUploadTile } from "./photo-upload";
 import { PhotoStrip } from "./photo-strip";
 import { Furniture } from "./furniture";
@@ -18,46 +18,16 @@ import { RoomAi } from "./room-ai";
 export default function RoomPage() {
   return (
     <Suspense>
-      <Room />
+      <RoomView />
     </Suspense>
   );
 }
 
-function Room() {
+function RoomView() {
   const roomId = useSearchParams().get("id") ?? "";
-  const { home } = useApp();
-  const { data } = useData(
-    async ({ supabase, home }) => {
-      const { data: room } = await supabase
-        .from("rooms")
-        .select("id,name,cover_photo_id,home_id")
-        .eq("id", roomId)
-        .eq("home_id", home.id)
-        .maybeSingle();
-      if (!room) return { room: null } as const;
-      const [{ data: photos }, { data: furniture }, { data: shopping }] = await Promise.all([
-        supabase.from("room_photos").select("*").eq("room_id", roomId).order("created_at"),
-        supabase
-          .from("furniture_items")
-          .select("id,room_id,name,note,keep,position")
-          .eq("room_id", roomId)
-          .order("position"),
-        supabase
-          .from("shopping_items")
-          .select("id,name,price_cents,status")
-          .eq("room_id", roomId)
-          .eq("status", "open")
-          .order("created_at"),
-      ]);
-      const list = (photos ?? []) as RoomPhoto[];
-      const urls = await signPaths(supabase, list.map((p) => p.storage_path));
-      return { room, list, urls, furniture: (furniture ?? []) as FurnitureItem[], shopping };
-    },
-    [roomId],
-  );
-
-  if (!data) return null;
-  if (!data.room)
+  const { doc } = useApp();
+  const room = doc.rooms.find((r) => r.id === roomId);
+  if (!room)
     return (
       <EmptyState
         title="Dieses Zimmer gibt es nicht mehr."
@@ -68,21 +38,15 @@ function Room() {
         }
       />
     );
-  const { room, list, urls, furniture: items, shopping } = data;
-  const cover = list.find((p) => p.id === room.cover_photo_id) ?? list[0];
-  const coverUrl = cover ? urls.get(cover.storage_path) : null;
+  const list = roomPhotos(doc, room.id);
+  const cover = roomCover(doc, room);
+  const items = doc.furniture.filter((f) => f.room_id === room.id).sort((a, b) => a.position - b.position);
+  const shopping = doc.shopping.filter((s) => s.room_id === room.id && s.status === "open");
 
   return (
     <div>
       <div className="relative md:pt-10">
-        <div className="aspect-[4/3] overflow-hidden bg-line md:aspect-[21/9] md:rounded-image">
-          {coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverUrl} alt={room.name} className="animate-fade-in h-full w-full object-cover" />
-          ) : (
-            <PhotoPlaceholder className="h-full w-full" />
-          )}
-        </div>
+        <Photo path={cover?.path} alt={room.name} className="aspect-[4/3] md:aspect-[21/9] md:rounded-image" />
         <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4 md:top-10">
           <Link href="/wohnung" aria-label="Zurück" className="rounded-full bg-white/85 p-2 backdrop-blur">
             <ArrowLeft size={20} strokeWidth={1.6} />
@@ -105,13 +69,13 @@ function Room() {
           <h2 className="mb-3 text-[15px] font-semibold">Fotos</h2>
           {list.length ? (
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
-              <PhotoUploadTile homeId={home.id} roomId={room.id} />
+              <PhotoUploadTile roomId={room.id} />
               <PhotoStrip
                 roomId={room.id}
                 roomName={room.name}
                 coverId={cover?.id ?? null}
-                homeCoverId={home.cover_photo_id}
-                photos={list.map((p) => ({ id: p.id, url: urls.get(p.storage_path) ?? "" }))}
+                homeCoverId={doc.home.cover_photo_id}
+                photos={list.map((p) => ({ id: p.id, path: p.path }))}
               />
             </div>
           ) : (
@@ -121,7 +85,7 @@ function Room() {
                 Zeig hiwo dein Zimmer und wir helfen dir, es zu gestalten.
               </p>
               <div className="mt-6">
-                <PhotoUploadButton homeId={home.id} roomId={room.id} />
+                <PhotoUploadButton roomId={room.id} />
               </div>
             </div>
           )}
@@ -141,14 +105,7 @@ function Room() {
           <h2 className="mb-3 text-[15px] font-semibold">Varianten</h2>
           <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 md:mx-0 md:px-0">
             <div className="w-36 shrink-0">
-              <div className="aspect-[4/3] overflow-hidden rounded-[16px] bg-line">
-                {coverUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverUrl} alt="Original" className="h-full w-full object-cover" />
-                ) : (
-                  <PhotoPlaceholder className="h-full w-full" />
-                )}
-              </div>
+              <Photo path={cover?.path} alt="Original" className="aspect-[4/3] rounded-[16px]" />
               <p className="mt-1.5 text-[13px] font-medium">Original</p>
               <p className="text-[11px] text-muted">bleibt immer erhalten</p>
             </div>
@@ -167,9 +124,9 @@ function Room() {
               Alle
             </Link>
           </div>
-          {shopping?.length ? (
+          {shopping.length ? (
             <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
-              {(shopping as Pick<ShoppingItem, "id" | "name" | "price_cents">[]).map((s) => (
+              {shopping.map((s) => (
                 <li key={s.id}>
                   <Link href={`/artikel?id=${s.id}`} className="flex items-center gap-3 py-3.5 text-[14px]">
                     <span className="h-4 w-4 rounded-full border border-ink/30" />

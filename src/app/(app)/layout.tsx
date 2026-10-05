@@ -3,11 +3,8 @@
 import { BottomNav, SideNav } from "@/components/nav";
 import { AiFab } from "@/components/ai-assistant";
 import { AppProvider } from "@/components/app-context";
-import { NotConfigured } from "@/components/not-configured";
-import { isConfigured } from "@/lib/supabase";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  if (!isConfigured) return <NotConfigured />;
   return (
     <AppProvider>
       <div className="flex min-h-dvh">

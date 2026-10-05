@@ -1,10 +1,35 @@
+// End-to-end run against a mock GitHub API (scripts/mock-github.mjs).
+// Build first:  NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 npm run build
+// Then:         CHROMIUM_PATH=<pfad> npm run e2e    (screenshots in e2e-output/)
 import fs from "node:fs";
+import http from "node:http";
+import path from "node:path";
 import { chromium } from "playwright";
+import { startMockGitHub } from "./mock-github.mjs";
 
 const OUT = process.env.E2E_OUT ?? "e2e-output";
 fs.mkdirSync(OUT, { recursive: true });
-const BASE = process.env.E2E_BASE ?? "http://127.0.0.1:3000/hiwo";
+const PORT = 3000;
+const BASE = `http://127.0.0.1:${PORT}/hiwo`;
 const HOME_URL = new RegExp(`^${BASE}/?$`);
+const REPO = "illy/hiwo-daten";
+const TOKEN = "test-token";
+
+// --- mock GitHub + static site ---------------------------------------------
+const gh = await startMockGitHub({ repo: REPO, token: TOKEN });
+const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".txt": "text/plain" };
+const site = http.createServer((req, res) => {
+  let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+  if (!p.startsWith("/hiwo")) return res.writeHead(404).end();
+  p = path.join("out", p.slice("/hiwo".length));
+  if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, "index.html");
+  if (!fs.existsSync(p)) return res.writeHead(404).end();
+  res.writeHead(200, { "Content-Type": types[path.extname(p)] ?? "application/octet-stream" });
+  fs.createReadStream(p).pipe(res);
+});
+await new Promise((r) => site.listen(PORT, "127.0.0.1", r));
+const doc = () => JSON.parse(gh.files.get("hiwo.json").toString());
+
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 
 // --- synthetic interior photos -------------------------------------------
@@ -55,35 +80,25 @@ page.on("pageerror", (e) => errors.push(String(e)));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 const shot = (n) => page.screenshot({ path: `${OUT}/${n}.png`, fullPage: true });
 
-async function latestCode(email) {
-  for (let t = 0; t < 30; t++) {
-    const r = await fetch("http://127.0.0.1:54324/api/v1/search?query=" + encodeURIComponent(`to:${email}`)).then((r) => r.json());
-    if (r.messages?.length) {
-      const id = r.messages[0].ID;
-      const m = await fetch(`http://127.0.0.1:54324/api/v1/message/${id}`).then((r) => r.json());
-      const code = (m.Text || m.HTML).match(/\b(\d{6})\b/)?.[1];
-      if (code) return code;
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error("no code");
-}
-
-async function login(p, email) {
-  if (!/\/login/.test(p.url())) await p.goto(`${BASE}/login/`);
-  await p.fill("input[type=email]", email);
-  await p.click("text=Weiter");
-  await p.waitForSelector("text=Wir haben dir einen Code");
-  const code = await latestCode(email);
-  await p.fill("input[autocomplete=one-time-code]", code);
-  await p.click("button:has-text('Anmelden')");
-}
+const newPhone = async () => {
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-DE" });
+  await c.grantPermissions(["clipboard-read", "clipboard-write"], { origin: `http://127.0.0.1:${PORT}` });
+  return c;
+};
+await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: `http://127.0.0.1:${PORT}` });
 
 await page.goto(`${BASE}/`);
 await page.waitForURL(/\/login\/?/);
 await shot("01-login");
-await login(page, "illy@example.com");
-await page.waitForURL(/\/willkommen\/?$/);
+// wrong token first
+await page.fill("input[placeholder='besitzer/hiwo-daten']", `https://github.com/${REPO}.git`);
+await page.fill("input[type=password]", "nope");
+await page.click("button:has-text('Verbinden')");
+await page.waitForSelector("text=Der Schlüssel stimmt nicht");
+await page.fill("input[type=password]", TOKEN);
+await page.click("button:has-text('Verbinden')");
+await page.waitForURL(/\/willkommen\/?/);
+await page.waitForSelector("text=Wohnung anlegen");
 await shot("02-onboarding");
 await page.fill("input[name=display_name]", "Illy");
 await page.fill("input[name=home_name]", "Meine Wohnung");
@@ -157,14 +172,13 @@ await shot("10-home");
 // invite
 await page.goto(`${BASE}/profil/mitbewohner`);
 await page.click("text=Person einladen");
-await page.fill("input[name=name]", "Nadin");
-await page.fill("input[name=contact]", "nadin@example.com");
-await page.click("form button:has-text('Einladen')");
-await page.waitForSelector("text=Nadin wurde eingeladen.");
-await shot("11-invited");
+await page.fill("input[placeholder^='z.B. Nadin']", "Nadin");
+await shot("11-invite");
+await page.click("button:has-text('Link kopieren')");
+await page.waitForSelector("text=Kopiert");
+const inviteUrl = await page.evaluate(() => navigator.clipboard.readText());
 await page.keyboard.press("Escape");
 await page.waitForTimeout(400);
-await shot("12-members");
 await page.goto(`${BASE}/profil`);
 await shot("13-profile");
 await page.goto(`${BASE}/wohnung`);
@@ -172,64 +186,94 @@ await page.click("button[aria-label='hiwo fragen']");
 await page.waitForTimeout(400);
 await shot("14-ai");
 
-// second user: Nadin joins via e-mail invite and checks an item
-const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-DE" });
+// second person: Nadin opens the invite link on her phone
+const ctx2 = await newPhone();
 const p2 = await ctx2.newPage();
 p2.on("pageerror", (e) => errors.push("p2 " + e));
-await login(p2, "nadin@example.com");
-await p2.waitForURL(/\/willkommen\/?$/);
+await p2.goto(inviteUrl);
+await p2.waitForURL(/\/willkommen\/?/);
+await p2.waitForSelector("text=Schön, dass");
+await p2.screenshot({ path: `${OUT}/17-invite-welcome.png`, fullPage: true });
+const keyLeftInUrl = (await p2.evaluate(() => location.href)).includes(TOKEN);
 await p2.fill("input[name=display_name]", "Nadin");
-await p2.click("button:has-text('Weiter')");
+await p2.click("button:has-text('Beitreten')");
 await p2.waitForURL(HOME_URL);
 const sawHome = await p2.waitForSelector("text=Meine Wohnung").then(() => true, () => false);
+
+// both edit at the same moment: Nadin ticks an item while Illy (on a stale copy) adds one
 await p2.goto(`${BASE}/einkauf`);
-await p2.locator("li:has-text('Nachttisch') button[aria-label='Als erledigt markieren']").click();
 await page.goto(`${BASE}/einkauf`);
-await p2.waitForTimeout(1000);
+await page.click("button:has-text('Artikel hinzufügen')");
+await page.fill("input[name=name]", "Kerzen");
+const conflictsBefore = gh.stats.conflicts;
+await Promise.all([
+  p2.locator("li:has-text('Nachttisch') button[aria-label='Als erledigt markieren']").click(),
+  page.click("button:has-text('Auf die Liste')"),
+]);
+await page.waitForSelector("li:has-text('Kerzen')");
+await p2.waitForTimeout(1500);
+const d = doc();
+const concurrent = {
+  conflictsResolved: gh.stats.conflicts - conflictsBefore,
+  kerzenSaved: d.shopping.some((s) => s.name === "Kerzen"),
+  nachttischDone: d.shopping.find((s) => s.name === "Nachttisch")?.status === "done",
+  doneBy: d.members.find((m) => m.id === d.shopping.find((s) => s.name === "Nachttisch")?.done_by)?.name,
+};
+await page.reload();
+await page.waitForSelector("li:has-text('Kerzen')");
+await shot("18-after-concurrent");
+
+// Illy sees Nadin in the member list
+await page.goto(`${BASE}/profil/mitbewohner`);
+await page.waitForSelector("text=Nadin");
+await shot("12-members");
+
+// same person, second device: picks her name instead of creating a duplicate
+const ctx3 = await newPhone();
+const p3 = await ctx3.newPage();
+p3.on("pageerror", (e) => errors.push("p3 " + e));
+await p3.goto(inviteUrl);
+await p3.waitForSelector("text=Schon dabei?");
+await p3.click("ul button:has-text('Nadin')");
+await p3.waitForURL(HOME_URL);
 
 // desktop
 const ctxD = await browser.newContext({ viewport: { width: 1440, height: 900 }, storageState: await ctx.storageState() });
 const pd = await ctxD.newPage();
 await pd.goto(`${BASE}/wohnung`);
-await pd.waitForTimeout(500);
+await pd.waitForSelector("text=Wohnzimmer");
+await pd.waitForTimeout(800);
 await pd.screenshot({ path: `${OUT}/15-desktop-rooms.png` });
 await pd.goto(`${BASE}/`);
-await pd.waitForTimeout(500);
+await pd.waitForTimeout(800);
 await pd.screenshot({ path: `${OUT}/16-desktop-home.png` });
 
-// invite link flow for a person without e-mail invite
-await page.goto(`${BASE}/profil/mitbewohner`);
-await page.click("text=Person einladen");
-await page.fill("input[name=name]", "Mama");
-await page.fill("input[name=contact]", "+49 170 1234567");
-await page.click("form button:has-text('Einladen')");
-await page.waitForSelector("text=Mama wurde eingeladen.");
+// delete a room: its photos disappear from the repo too
+const before = [...gh.files.keys()].filter((k) => k.startsWith("fotos/")).length;
+const bad = doc().rooms.find((r) => r.name === "Badezimmer");
+await page.goto(`${BASE}/zimmer/?id=${bad.id}`);
+await page.waitForSelector("h1:has-text('Badezimmer')");
+await page.click("button[aria-label='Mehr']");
+await page.click("text=Zimmer löschen");
+await page.click("text=wirklich löschen?");
+await page.waitForURL(/\/wohnung\/?$/);
+await page.waitForTimeout(1500);
+const after = [...gh.files.keys()].filter((k) => k.startsWith("fotos/")).length;
 
-// Mama joins through the shared link (needs the local service key to read the token)
-let joinedByLink = "skipped";
-if (process.env.E2E_SERVICE_KEY) {
-  const rows = await fetch(`${process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321"}/rest/v1/home_invites?name=eq.Mama&select=token`, {
-    headers: { apikey: process.env.E2E_SERVICE_KEY, Authorization: `Bearer ${process.env.E2E_SERVICE_KEY}` },
-  }).then((r) => r.json());
-  const ctx4 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-DE" });
-  const p4 = await ctx4.newPage();
-  p4.on("pageerror", (e) => errors.push("p4 " + e));
-  await p4.goto(`${BASE}/einladung/?t=${rows[0].token}`);
-  await p4.waitForSelector("text=lädt dich in");
-  await p4.screenshot({ path: `${OUT}/17-invite-link.png` });
-  await p4.click("text=Anmelden und beitreten");
-  await p4.waitForURL(/\/login\/?\?next=/);
-  await login(p4, "mama@example.com");
-  await p4.waitForSelector("text=Einladung annehmen");
-  await p4.click("text=Einladung annehmen");
-  await p4.waitForURL(/\/willkommen\/?$/);
-  await p4.fill("input[name=display_name]", "Mama");
-  await p4.click("button:has-text('Weiter')");
-  await p4.waitForURL(HOME_URL);
-  await p4.goto(`${BASE}/wohnung/`);
-  await p4.waitForSelector("text=Wohnzimmer");
-  joinedByLink = "ok";
-}
-
-console.log(JSON.stringify({ sawHome, joinedByLink, errors }, null, 2));
+const final = doc();
+const summary = {
+  sawHome,
+  keyLeftInUrl,
+  concurrent,
+  members: final.members.map((m) => m.name),
+  rooms: final.rooms.map((r) => r.name),
+  photoFiles: { before, after },
+  photosInDoc: final.photos.length,
+  shopping: final.shopping.length,
+  commits: gh.stats.puts,
+  errors,
+};
+console.log(JSON.stringify(summary, null, 2));
 await browser.close();
+site.close();
+gh.close();

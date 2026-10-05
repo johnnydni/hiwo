@@ -1,34 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Plus } from "lucide-react";
-import { addShoppingItem, setShoppingDone } from "@/lib/api";
-import { createClient } from "@/lib/supabase";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
+import { Photo } from "@/components/photo";
 import { formatPrice } from "@/lib/format";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
 import { Button, EmptyState, Input, Label, Textarea, cx } from "@/components/ui";
 
-type Item = ShoppingItem & { imageUrl: string | null };
+type Item = ShoppingItem;
 type Room = { id: string; name: string };
 
 export function ShoppingList({
-  homeId,
   items,
   rooms,
   initialRoom,
   initiallyAdding,
 }: {
-  homeId: string;
   items: Item[];
   rooms: Room[];
   initialRoom: string | null;
   initiallyAdding: boolean;
 }) {
-  const app = useApp();
-  const { bump } = app;
+  const { setShoppingDone } = useActions();
   const [mode, setMode] = useState<"all" | "room">(initialRoom ? "room" : "all");
   const [room, setRoom] = useState<string | null>(initialRoom ?? rooms[0]?.id ?? null);
   const [adding, setAdding] = useState(initiallyAdding);
@@ -38,27 +34,10 @@ export function ShoppingList({
     state.map((i) => (i.id === id ? { ...i, status: done ? ("done" as const) : ("open" as const) } : i)),
   );
 
-  // Live updates when a family member changes the list.
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`shopping-${homeId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "shopping_items", filter: `home_id=eq.${homeId}` },
-        () => bump(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [homeId, bump]);
-
   const toggle = (it: Item) =>
     start(async () => {
       setOptimistic({ id: it.id, done: it.status !== "done" });
-      await setShoppingDone(app, it.id, it.status !== "done");
-      bump();
+      await setShoppingDone(it.id, it.status !== "done");
     });
 
   const visible = mode === "room" ? optimistic.filter((i) => i.room_id === room) : optimistic;
@@ -181,10 +160,7 @@ function Row({ item, rooms, onToggle }: { item: Item; rooms: Room[]; onToggle: (
       >
         {done && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
       </button>
-      {item.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.imageUrl} alt="" className="h-10 w-10 rounded-[10px] object-cover" />
-      )}
+      {item.image_path && <Photo path={item.image_path} className="h-10 w-10 shrink-0 rounded-[10px]" />}
       <Link href={`/artikel?id=${item.id}`} className="flex min-w-0 flex-1 items-center gap-2">
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>
@@ -210,7 +186,7 @@ function AddItemSheet({
   const form = useRef<HTMLFormElement>(null);
   const [more, setMore] = useState(false);
   const [pending, start] = useTransition();
-  const app = useApp();
+  const { addShoppingItem } = useActions();
   return (
     <Sheet open={open} onClose={onClose} title="Artikel hinzufügen">
       <form
@@ -219,9 +195,8 @@ function AddItemSheet({
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
           start(async () => {
-            await addShoppingItem(app, fd);
+            await addShoppingItem(fd);
             form.current?.reset();
-            app.bump();
             onClose();
           });
         }}

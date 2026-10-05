@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createRoom } from "@/lib/api";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
 import { Sheet } from "@/components/sheet";
 import { Button, Input } from "@/components/ui";
 
@@ -13,7 +12,7 @@ const SUGGESTIONS = ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer", "Arbe
 function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () => void; existing: string[] }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const app = useApp();
+  const { createRoom } = useActions();
   const router = useRouter();
   const free = SUGGESTIONS.filter((s) => !existing.includes(s));
   return (
@@ -23,8 +22,7 @@ function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () 
           e.preventDefault();
           if (!name.trim()) return;
           setBusy(true);
-          const id = await createRoom(app, name);
-          app.bump();
+          const id = await createRoom(name);
           router.push(`/zimmer?id=${id}`);
         }}
         className="space-y-4"

@@ -1,17 +1,5 @@
-import type { Profile } from "./types";
-
-export function displayName(p: Pick<Profile, "display_name" | "email"> | null | undefined) {
-  if (!p) return "Jemand";
-  if (p.display_name?.trim()) return p.display_name.trim();
-  if (p.email) {
-    const local = p.email.split("@")[0];
-    return local.charAt(0).toUpperCase() + local.slice(1);
-  }
-  return "Jemand";
-}
-
-export function firstName(p: Pick<Profile, "display_name" | "email"> | null | undefined) {
-  return displayName(p).split(" ")[0];
+export function firstName(name: string | null | undefined) {
+  return (name ?? "").trim().split(/\s+/)[0] || "du";
 }
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
