@@ -160,7 +160,7 @@ const PAGES = {
 const only = process.env.SCREENS_ONLY?.split(",");
 const errors = [];
 for (const [vp, size] of Object.entries(VIEWPORTS)) {
-  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 2, locale: "de-DE", hasTouch: vp === "phone" });
+  const ctx = await browser.newContext({ acceptDownloads: true, viewport: size, deviceScaleFactor: 2, locale: "de-DE" });
   await ctx.addInitScript(([repo, token]) => {
     localStorage.setItem("hiwo_connection", JSON.stringify({ repo, token, memberId: "m1" }));
     sessionStorage.setItem("hiwo_intro", "1"); // skip the splash animation
