@@ -181,7 +181,7 @@ function AddItemSheet({
         }}
         className="space-y-4"
       >
-        <Input name="name" placeholder="Was brauchst du?" required autoFocus />
+        <Input name="name" placeholder="Was brauchst du? Oder Link einfügen" required autoFocus />
         <TargetSelect key={defaultRoom ?? ""} defaultValue={defaultRoom ?? ""} />
         {more ? (
           <>

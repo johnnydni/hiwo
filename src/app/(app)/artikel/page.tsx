@@ -53,7 +53,7 @@ function Item() {
     <div>
       <PageHeader back={forHref ?? "/einkauf"} title="" />
       <div className="-mt-6 px-4 md:grid md:grid-cols-2 md:items-start md:gap-10 md:px-0">
-        <ItemImage itemId={item.id} path={item.image_path} />
+        <ItemImage itemId={item.id} path={item.image_path} remote={item.image_url} />
         <div>
           <div className="animate-fade-up mt-5 md:mt-0">
             <h1 className="font-serif text-[34px] leading-tight break-words">{item.name}</h1>

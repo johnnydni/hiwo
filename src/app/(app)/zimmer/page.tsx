@@ -74,7 +74,7 @@ function RoomView() {
           <ItemList
             items={items.filter((i) => !i.variant_id)}
             target={{ room_id: room.id, variant_id: null }}
-            placeholder="z.B. Glühbirnen, Haken …"
+            placeholder="z.B. Glühbirnen – oder Link"
           />
         </section>
       </div>

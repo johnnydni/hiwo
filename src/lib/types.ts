@@ -60,6 +60,8 @@ export type ShoppingItem = {
   url: string | null;
   image_path: string | null;
   image_sha: string | null;
+  /** product picture found behind `url` (hotlinked); an own photo (image_path) wins */
+  image_url?: string | null;
   status: "open" | "done";
   created_by: string | null;
   done_by: string | null;

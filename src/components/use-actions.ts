@@ -6,6 +6,7 @@ import { useApp } from "./app-context";
 import { parsePrice } from "@/lib/format";
 import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
+import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { removeFile, uploadPhoto } from "@/lib/store";
 import type { HiwoDoc } from "@/lib/types";
 
@@ -48,6 +49,18 @@ export function useActions() {
       created_by: by,
       created_at: now(),
     };
+  }
+
+  /** Stores the shop's product picture; replaces the name only if it was just the link. */
+  async function fillFromLink(itemId: string, url: string, placeholderName: string | null) {
+    const preview = await fetchPreview(url);
+    if (!preview || (!preview.image && !(placeholderName && preview.title))) return;
+    await mutate("hiwo: Produktbild aus Link", (d) => {
+      const s = d.shopping.find((x) => x.id === itemId);
+      if (!s || s.url !== url) return;
+      if (preview.image) s.image_url = preview.image;
+      if (placeholderName && preview.title && s.name === placeholderName) s.name = preview.title;
+    }).catch(() => {});
   }
 
   return {
@@ -178,35 +191,53 @@ export function useActions() {
     },
 
     // -- shopping ------------------------------------------------------------
-    addShoppingItem: (fd: FormData) =>
-      mutate(`hiwo: ${str(fd, "name")} auf die Liste`, (d) => {
+    /** A link pasted as the name works too: the name then comes from the shop page. */
+    addShoppingItem: async (fd: FormData) => {
+      const id = newId();
+      let name = str(fd, "name");
+      let url = str(fd, "url") || null;
+      const nameIsLink = looksLikeUrl(name);
+      if (nameIsLink) {
+        url = url ?? normalizeUrl(name);
+        name = hostname(normalizeUrl(name));
+      }
+      await mutate(`hiwo: ${name} auf die Liste`, (d) => {
         d.shopping.push({
-          id: newId(),
+          id,
           ...parseTarget(str(fd, "target")),
-          name: str(fd, "name"),
+          name,
           price_cents: parsePrice(str(fd, "price")),
           note: str(fd, "note") || null,
-          url: str(fd, "url") || null,
+          url,
           image_path: null,
           image_sha: null,
+          image_url: null,
           status: "open",
           created_by: by,
           done_by: null,
           done_at: null,
           created_at: now(),
         });
-      }),
+      });
+      // picture (and name) from the shop page, in the background: adding stays instant
+      if (url) void fillFromLink(id, url, nameIsLink ? name : null);
+    },
 
-    updateShoppingItem: (id: string, fd: FormData) =>
-      mutate("hiwo: Artikel bearbeitet", (d) => {
+    updateShoppingItem: async (id: string, fd: FormData) => {
+      const before = doc.shopping.find((x) => x.id === id);
+      const url = str(fd, "url") ? normalizeUrl(str(fd, "url")) : null;
+      await mutate("hiwo: Artikel bearbeitet", (d) => {
         const s = d.shopping.find((x) => x.id === id);
         if (!s) return;
         s.name = str(fd, "name") || s.name;
         Object.assign(s, parseTarget(str(fd, "target")));
         s.price_cents = parsePrice(str(fd, "price"));
         s.note = str(fd, "note") || null;
-        s.url = str(fd, "url") || null;
-      }),
+        if (s.url !== url) s.image_url = null;
+        s.url = url;
+      });
+      if (url && url !== before?.url) void fillFromLink(id, url, null);
+    },
 
     setShoppingDone: (id: string, done: boolean) =>
       mutate(done ? "hiwo: Artikel erledigt" : "hiwo: Artikel wieder offen", (d) => {

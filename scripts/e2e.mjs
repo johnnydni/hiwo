@@ -1,5 +1,5 @@
 // End-to-end run against a mock GitHub API (scripts/mock-github.mjs).
-// Build first:  NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 npm run build
+// Build first:  NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 NEXT_PUBLIC_LINK_PREVIEW_API=http://127.0.0.1:4010/preview npm run build
 // Then:         CHROMIUM_PATH=<pfad> npm run e2e    (screenshots in e2e-output/)
 import fs from "node:fs";
 import http from "node:http";
@@ -142,6 +142,10 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
       await page.press("input[placeholder^='z.B. Sofa']", "Enter");
       await page.waitForSelector(`li:has-text('${f}')`);
     }
+    // a pasted shop link becomes an item with the product's name and picture
+    await page.fill("input[placeholder^='z.B. Sofa']", "https://shop.example/de/sofa-lino");
+    await page.press("input[placeholder^='z.B. Sofa']", "Enter");
+    await page.waitForSelector("li:has-text('Sofa Lino') img", { timeout: 15000 });
     await shot("05-variant");
     await page.click("button:has-text('Vorher')");
     await page.waitForTimeout(600);
@@ -310,6 +314,7 @@ const summary = {
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
   variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),
+  fromLink: final.shopping.filter((s) => s.url).map((s) => ({ name: s.name, image_url: s.image_url })),
   japandiList: final.shopping.filter((s) => s.variant_id === final.photos.find((p) => p.name === "Japandi")?.id).map((s) => s.name),
   schema: final.schema,
   photoFiles: { before, after },
