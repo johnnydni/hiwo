@@ -1,6 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
+import { Map as MapIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { roomCards } from "@/lib/selectors";
 import { useApp } from "@/components/app-context";
@@ -28,7 +30,14 @@ function Wohnung() {
       <PageHeader
         title={home.name}
         subtitle={home.city ?? undefined}
-        action={<AddRoomButton existing={existing} initiallyOpen={neu === "1"} />}
+        titleAction={
+          <>
+            <Link href="/lageplan" aria-label="Lageplan" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-ink/5">
+              <MapIcon size={21} strokeWidth={1.6} />
+            </Link>
+            <AddRoomButton existing={existing} initiallyOpen={neu === "1"} />
+          </>
+        }
       />
       <div className="px-4 md:px-0">
         {rooms.length ? (

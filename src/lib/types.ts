@@ -87,6 +87,34 @@ export type Sketch = {
   created_at: string;
 };
 
+/**
+ * A room on the Lageplan: an axis-aligned rectangle in plan units (1 unit =
+ * 1 screen pixel when the plan was started; only proportions matter).
+ */
+export type PlanRoom = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** the hiwo room it stands for */
+  room_id: string | null;
+  /** name for areas that are no hiwo room (e.g. Abstellkammer) */
+  label: string | null;
+  /** entered size; also gives the plan its scale */
+  area_m2: number | null;
+};
+
+/** A door in a wall: on the horizontal line y = `at` (dir h) or vertical x = `at` (dir v). */
+export type PlanDoor = { id: string; dir: "h" | "v"; at: number; from: number; to: number };
+
+export type Plan = {
+  rooms: PlanRoom[];
+  doors: PlanDoor[];
+  updated_by: string | null;
+  updated_at: string;
+};
+
 export type HiwoDoc = {
   schema: 2;
   home: Home;
@@ -96,4 +124,6 @@ export type HiwoDoc = {
   shopping: ShoppingItem[];
   /** added later; missing in older files */
   sketches?: Sketch[];
+  /** Lageplan; added later */
+  plan?: Plan;
 };
