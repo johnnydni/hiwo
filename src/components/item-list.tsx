@@ -4,7 +4,7 @@ import { useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Plus } from "lucide-react";
 import { useActions, targetValue } from "./use-actions";
-import { Photo } from "./photo";
+import { ItemThumb } from "./item-thumb";
 import { formatPrice } from "@/lib/format";
 import type { ShoppingItem } from "@/lib/types";
 import { cx } from "./ui";
@@ -13,7 +13,7 @@ import { cx } from "./ui";
 export function ItemList({
   items,
   target,
-  placeholder = "Was braucht ihr dafür?",
+  placeholder = "Was braucht ihr? Oder Link einfügen",
 }: {
   items: ShoppingItem[];
   target: { room_id: string | null; variant_id: string | null };
@@ -111,7 +111,7 @@ export function ItemRow({ item, onToggle, meta }: { item: ShoppingItem; onToggle
           {done && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
         </span>
       </button>
-      {item.image_path && <Photo path={item.image_path} className="mr-1.5 h-10 w-10 shrink-0 rounded-[10px]" />}
+      <ItemThumb item={item} className="mr-1.5 h-12 w-12 shrink-0 rounded-[10px] border border-line" />
       <Link href={`/artikel?id=${item.id}`} className="flex min-h-11 min-w-0 flex-1 items-center gap-2">
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>

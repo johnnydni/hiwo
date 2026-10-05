@@ -84,7 +84,7 @@ function VariantView() {
 
         <section className="mt-7 mb-4">
           <h2 className="mb-3 text-[15px] font-semibold">Einkaufsliste für diese Variante</h2>
-          <ItemList items={items} target={{ room_id: room.id, variant_id: variant.id }} placeholder="z.B. Sofa, Teppich, Lampe …" />
+          <ItemList items={items} target={{ room_id: room.id, variant_id: variant.id }} placeholder="z.B. Sofa – oder Link aus dem Shop" />
         </section>
       </div>
     </div>

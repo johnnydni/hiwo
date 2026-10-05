@@ -20,6 +20,16 @@ export function startMockGitHub({ port = 4010, repo = "illy/hiwo-daten", token =
 
   const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") return send(res, 204, "", "text/plain");
+    // stand-in for the link-preview service (microlink.io format)
+    const u = new URL(req.url, "http://x");
+    if (u.pathname === "/preview/img.svg")
+      return send(res, 200, '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90"><rect width="120" height="90" fill="#b9684a"/><rect x="20" y="40" width="80" height="30" rx="8" fill="#3f3a35"/></svg>', "image/svg+xml");
+    if (u.pathname.startsWith("/preview")) {
+      const target = u.searchParams.get("url") ?? "";
+      const slug = target.split("/").filter(Boolean).pop() ?? "";
+      const title = slug.split("-").map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ");
+      return send(res, 200, { status: "success", data: { title: `${title} – Beispielshop`, image: { url: `http://127.0.0.1:${port}/preview/img.svg` } } });
+    }
     if (req.headers.authorization !== `Bearer ${token}`) return send(res, 401, { message: "Bad credentials" });
     const url = new URL(req.url, "http://x");
     const prefix = `/repos/${repo}`;

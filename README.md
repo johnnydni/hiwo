@@ -18,6 +18,8 @@ hiwo braucht keinen Server und keine Datenbank: Die App ist reines HTML/JS (läu
 | Varianten: Foto hochladen, Name, Notiz, Vorher/Nachher-Umschalter | ✓ |
 | Einkaufsliste pro Variante und „für das Zimmer allgemein“, schnelles Hinzufügen | ✓ |
 | Einkauf: Gesamte Wohnung / Nach Zimmer, abhaken, Preis, Link, Notiz, Produktfoto, Abgleich alle 30 s | ✓ |
+| Link einfügen → Artikel mit Produktname und -bild aus dem Shop | ✓ |
+| Zimmer per Drag & Drop sortieren | ✓ |
 | Mitbewohner: Einladung per Link (teilen/kopieren) | ✓ |
 | Profil & Einstellungen | ✓ |
 
@@ -39,6 +41,7 @@ Jede Aktion ist ein Commit (z.B. „hiwo: Stehlampe auf die Liste“), die Git-H
 - **Kein Live-Update.** Änderungen anderer erscheinen beim Öffnen der App und sonst spätestens nach 30 Sekunden.
 - **Größe.** Ein GitHub-Repo sollte unter ~1 GB bleiben. Bei ~400 KB pro Foto reicht das für über 2000 Fotos.
 - **Rate-Limit.** 5000 API-Aufrufe pro Stunde und Token, im Familienalltag kein Thema.
+- **Produktbilder aus Links** holt die App über microlink.io (kostenlos, ohne Schlüssel, ca. 50 Links pro Tag). Dabei wird nur der Produktlink übertragen. Die Bilder werden vom Shop verlinkt, nicht gespeichert; ändert der Shop seine Seite, kann ein Bild verschwinden. Ein eigenes Foto am Artikel hat immer Vorrang.
 - Der Token liegt im `localStorage` des Geräts. „Auf diesem Gerät abmelden“ löscht ihn.
 
 ## Einrichten
@@ -59,7 +62,7 @@ npm run dev     # http://localhost:3000, verbindet sich mit dem echten GitHub
 End-to-end-Durchlauf gegen eine nachgebaute GitHub-API (`scripts/mock-github.mjs`), mit Screenshots in `e2e-output/`:
 
 ```bash
-NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 npm run build
+NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 NEXT_PUBLIC_LINK_PREVIEW_API=http://127.0.0.1:4010/preview npm run build
 CHROMIUM_PATH=<pfad> npm run e2e
 ```
 

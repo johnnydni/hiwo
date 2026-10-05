@@ -92,10 +92,13 @@ export function ItemActions({ item }: { item: ShoppingItem }) {
   );
 }
 
-export function ItemImage({ itemId, path }: { itemId: string; path: string | null }) {
+export function ItemImage({ itemId, path, remote }: { itemId: string; path: string | null; remote?: string | null }) {
   const input = useRef<HTMLInputElement>(null);
   const { setShoppingImage } = useActions();
-  const url = usePhotoUrl(path);
+  const own = usePhotoUrl(path);
+  const [remoteBroken, setRemoteBroken] = useState(false);
+  const fromLink = !path && remote && !remoteBroken ? remote : null;
+  const url = own ?? fromLink;
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -119,19 +122,30 @@ export function ItemImage({ itemId, path }: { itemId: string; path: string | nul
         className={cx(
           "relative block w-full overflow-hidden rounded-image",
           // without a photo a slim drop zone is enough; most items never get one
-          path ? "aspect-[4/3] bg-line" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
+          path ? "aspect-[4/3] bg-line" : fromLink ? "aspect-[4/3] bg-white" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
         )}
         aria-label={url ? "Produktfoto ändern" : "Produktfoto hinzufügen"}
       >
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="h-full w-full object-cover" />
+          <img
+            src={url}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={() => fromLink && setRemoteBroken(true)}
+            className={fromLink ? "h-full w-full object-contain p-4" : "h-full w-full object-cover"}
+          />
         ) : path ? (
           <span className="animate-shimmer block h-full w-full bg-line" />
         ) : (
           <span className="flex h-full items-center justify-center gap-2 text-[14px] text-muted md:flex-col">
             {busy ? <Loader2 className="animate-spin" /> : <ImagePlus size={22} strokeWidth={1.4} />}
             Produktfoto hinzufügen
+          </span>
+        )}
+        {fromLink && !busy && (
+          <span className="absolute right-3 bottom-3 rounded-full bg-ink/70 px-3 py-1 text-[12px] text-white">
+            Bild aus dem Link · eigenes Foto?
           </span>
         )}
         {url && busy && (
