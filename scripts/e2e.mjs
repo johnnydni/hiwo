@@ -114,6 +114,9 @@ for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].e
   await page.click("button[aria-label='Zimmer hinzufügen']");
   await page.click(`button:has-text('${name}')`);
   await page.click("form button:has-text('Zimmer hinzufügen')");
+  // the sheet closes and the new room shows up in the overview
+  await page.waitForSelector("[role=dialog]", { state: "detached" });
+  await page.click(`a[href*='/zimmer']:has-text('${name}')`);
   await page.waitForURL(/\/zimmer\/?\?id=/);
   await page.waitForSelector(`text=So sieht ${name} jetzt aus`);
   if (i === 0) await shot("04-room-empty");
@@ -268,6 +271,20 @@ await pd.goto(`${BASE}/wohnung`);
 await pd.waitForSelector("text=Wohnzimmer");
 await pd.waitForTimeout(800);
 await pd.screenshot({ path: `${OUT}/15-desktop-rooms.png` });
+// reorder by dragging: Küche in front of Wohnzimmer, without opening either room
+const card = (n) => pd.locator(`a[href*='/zimmer']:has-text('${n}')`);
+const from = await card("Küche").boundingBox();
+const to = await card("Wohnzimmer").boundingBox();
+await pd.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+await pd.mouse.down();
+for (let s = 1; s <= 12; s++)
+  await pd.mouse.move(from.x + from.width / 2 + ((to.x - from.x) * s) / 12, from.y + from.height / 2 + ((to.y - from.y) * s) / 12);
+await pd.mouse.up();
+await pd.waitForTimeout(1500);
+const reorder = {
+  stayedOnOverview: /\/wohnung\/?$/.test(pd.url()),
+  order: [...doc().rooms].sort((a, b) => a.position - b.position).map((r) => r.name),
+};
 await pd.goto(`${BASE}/`);
 await pd.waitForTimeout(800);
 await pd.screenshot({ path: `${OUT}/16-desktop-home.png` });
@@ -289,6 +306,7 @@ const summary = {
   sawHome,
   keyLeftInUrl,
   concurrent,
+  reorder,
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
   variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),

@@ -85,6 +85,18 @@ export function useActions() {
       return id;
     },
 
+    /** New room order; rooms missing from `ids` (added meanwhile by someone else) go last. */
+    reorderRooms: (ids: string[]) =>
+      mutate("hiwo: Zimmer umsortiert", (d) => {
+        const rank = (id: string) => {
+          const i = ids.indexOf(id);
+          return i === -1 ? ids.length : i;
+        };
+        [...d.rooms]
+          .sort((a, b) => rank(a.id) - rank(b.id) || a.position - b.position)
+          .forEach((r, i) => (r.position = i));
+      }),
+
     renameRoom: (roomId: string, name: string) =>
       mutate("hiwo: Zimmer umbenannt", (d) => {
         const r = d.rooms.find((x) => x.id === roomId);

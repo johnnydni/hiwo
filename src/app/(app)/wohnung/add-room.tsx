@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useActions } from "@/components/use-actions";
 import { Sheet } from "@/components/sheet";
 import { Button, Input } from "@/components/ui";
@@ -13,7 +12,6 @@ function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () 
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const { createRoom } = useActions();
-  const router = useRouter();
   const free = SUGGESTIONS.filter((s) => !existing.includes(s));
   return (
     <Sheet open={open} onClose={onClose} title="Zimmer hinzufügen">
@@ -22,8 +20,14 @@ function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () 
           e.preventDefault();
           if (!name.trim()) return;
           setBusy(true);
-          const id = await createRoom(name);
-          router.push(`/zimmer?id=${id}`);
+          // stay on the overview: rooms are often added several at a time
+          try {
+            await createRoom(name);
+            setName("");
+            onClose();
+          } finally {
+            setBusy(false);
+          }
         }}
         className="space-y-4"
       >
