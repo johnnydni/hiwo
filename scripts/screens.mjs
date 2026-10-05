@@ -167,6 +167,28 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${OUT}/${vp}-sheet-header.png` });
   }
+  // before/after slider on a variant, handle dragged to 30%
+  if (!only || only.includes("vergleich")) {
+    await page.goto(BASE + "/variante/?id=v0");
+    await page.waitForLoadState("networkidle");
+    await page.click("button:has-text('Vergleich')");
+    const box = await page.locator("[role=slider]").locator("..").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${vp}-vergleich.png` });
+  }
+  await ctx.close();
+}
+// logged-out screens
+{
+  const ctx = await browser.newContext({ viewport: VIEWPORTS[Object.keys(VIEWPORTS)[0]], deviceScaleFactor: 2, locale: "de-DE" });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/login/");
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/login.png` });
   await ctx.close();
 }
 console.log(errors.length ? errors.join("\n") : "no errors");

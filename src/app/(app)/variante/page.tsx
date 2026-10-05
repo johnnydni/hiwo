@@ -9,6 +9,7 @@ import { useActions } from "@/components/use-actions";
 import { ItemList } from "@/components/item-list";
 import { Photo } from "@/components/photo";
 import { PhotoTools } from "@/components/photo-tools";
+import { CompareSlider } from "@/components/compare-slider";
 import { Sheet } from "@/components/sheet";
 import { basePhoto } from "@/lib/selectors";
 import type { RoomPhoto } from "@/lib/types";
@@ -26,7 +27,7 @@ export default function VariantPage() {
 function VariantView() {
   const id = useSearchParams().get("id") ?? "";
   const { doc } = useApp();
-  const [showBase, setShowBase] = useState(false);
+  const [mode, setMode] = useState<"variant" | "compare" | "base">("variant");
   const variant = doc.photos.find((p) => p.id === id && p.kind === "variant");
   const room = variant && doc.rooms.find((r) => r.id === variant.room_id);
   if (!variant || !room)
@@ -42,7 +43,7 @@ function VariantView() {
     );
   const base = basePhoto(doc, room.id);
   const items = doc.shopping.filter((s) => s.variant_id === variant.id);
-  const shown = showBase && base ? base : variant;
+  const shown = mode === "base" && base ? base : variant;
 
   return (
     <div>
@@ -54,9 +55,10 @@ function VariantView() {
             <Photo
               path={base.path}
               alt="Vorher"
-              className={cx("absolute inset-0 transition-opacity duration-300", showBase ? "opacity-100" : "opacity-0")}
+              className={cx("absolute inset-0 transition-opacity duration-300", mode === "base" ? "opacity-100" : "opacity-0")}
             />
           )}
+          {base && mode === "compare" && <CompareSlider before={base.path} after={variant.path} className="animate-fade-in" />}
         </div>
         <Link
           href={`/zimmer?id=${room.id}`}
@@ -67,18 +69,24 @@ function VariantView() {
         </Link>
         {base && (
           <div className="absolute bottom-3 left-3 inline-flex rounded-full md:left-1/2 md:-translate-x-1/2 bg-white/90 p-1 text-[13px] backdrop-blur">
-            {[false, true].map((b) => (
+            {(
+              [
+                ["variant", "Variante"],
+                ["compare", "Vergleich"],
+                ["base", "Vorher"],
+              ] as const
+            ).map(([m, label]) => (
               <button
-                key={String(b)}
-                onClick={() => setShowBase(b)}
-                className={cx("rounded-full px-4 py-2 transition-colors duration-200", showBase === b ? "bg-ink text-white" : "text-ink/70")}
+                key={m}
+                onClick={() => setMode(m)}
+                className={cx("rounded-full px-3.5 py-2 transition-colors duration-200", mode === m ? "bg-ink text-white" : "text-ink/70")}
               >
-                {b ? "Vorher" : "Variante"}
+                {label}
               </button>
             ))}
           </div>
         )}
-        {/* draws on whichever photo is showing */}
+        {/* draws on whichever photo is showing (the variant while comparing) */}
         <PhotoTools sourceId={shown.id} path={shown.path} />
       </div>
 
