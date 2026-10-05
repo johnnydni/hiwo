@@ -8,7 +8,7 @@ import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { removeFile, uploadPhoto } from "@/lib/store";
-import type { HiwoDoc } from "@/lib/types";
+import type { HiwoDoc, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
   const v = fd.get(key);
@@ -30,9 +30,18 @@ export function targetValue(item: { room_id: string | null; variant_id: string |
   return item.room_id ? (item.variant_id ? `${item.room_id}/${item.variant_id}` : item.room_id) : "";
 }
 
+/** Removes the sketches of deleted photos/items from the doc. */
+function dropSketches(doc: HiwoDoc, sourceIds: Set<string>) {
+  if (doc.sketches) doc.sketches = doc.sketches.filter((k) => !sourceIds.has(k.source_id));
+}
+
 export function useActions() {
   const { conn, me, doc, mutate, track } = useApp();
   const by = me.id;
+  const sketchesOf = (ids: Set<string>) => (doc.sketches ?? []).filter((k) => ids.has(k.source_id));
+  const removeSketchFiles = async (list: Sketch[]) => {
+    for (const k of list) await removeFile(conn, k.path, k.sha, "hiwo: Skizze gelöscht").catch(() => {});
+  };
 
   async function upload(roomId: string, file: File) {
     const { blob, width, height } = await prepareImage(file, 1800);
@@ -121,8 +130,10 @@ export function useActions() {
 
     deleteRoom: async (roomId: string) => {
       const photos = doc.photos.filter((p) => p.room_id === roomId);
+      const sketches = sketchesOf(new Set(photos.map((p) => p.id)));
       await mutate("hiwo: Zimmer gelöscht", (d) => {
         const photoIds = new Set(d.photos.filter((p) => p.room_id === roomId).map((p) => p.id));
+        dropSketches(d, photoIds);
         d.rooms = d.rooms.filter((r) => r.id !== roomId);
         d.photos = d.photos.filter((p) => p.room_id !== roomId);
         // keep the shopping items, they just move to "Gesamte Wohnung"
@@ -136,6 +147,7 @@ export function useActions() {
       });
       // files last: if this fails, the doc is still consistent
       for (const p of photos) await removeFile(conn, p.path, p.sha, "hiwo: Foto gelöscht").catch(() => {});
+      await removeSketchFiles(sketches);
     },
 
     // -- photos: one base photo per room, any number of variants --------------
@@ -147,6 +159,8 @@ export function useActions() {
         d.photos = d.photos.filter((p) => !(p.room_id === roomId && p.kind === "base"));
         d.photos.push({ ...photo, kind: "base", name: null, note: null });
         if (old && d.home.cover_photo_id === old.id) d.home.cover_photo_id = photo.id;
+        // sketches of the old photo stay with the room's (new) base photo
+        d.sketches?.forEach((k) => old && k.source_id === old.id && (k.source_id = photo.id));
         touchRoom(d, roomId);
       });
       if (old) await removeFile(conn, old.path, old.sha, "hiwo: altes Ausgangsfoto").catch(() => {});
@@ -180,14 +194,17 @@ export function useActions() {
     deletePhoto: async (photoId: string) => {
       const photo = doc.photos.find((p) => p.id === photoId);
       if (!photo) return;
+      const sketches = sketchesOf(new Set([photoId]));
       await mutate(photo.kind === "base" ? "hiwo: Ausgangsfoto gelöscht" : "hiwo: Variante gelöscht", (d) => {
         d.photos = d.photos.filter((p) => p.id !== photoId);
+        dropSketches(d, new Set([photoId]));
         // items of a deleted variant stay on the room's list
         d.shopping.forEach((s) => s.variant_id === photoId && (s.variant_id = null));
         if (d.home.cover_photo_id === photoId) d.home.cover_photo_id = null;
         touchRoom(d, photo.room_id);
       });
       await removeFile(conn, photo.path, photo.sha, "hiwo: Foto gelöscht").catch(() => {});
+      await removeSketchFiles(sketches);
     },
 
     // -- shopping ------------------------------------------------------------
@@ -250,10 +267,13 @@ export function useActions() {
 
     deleteShoppingItem: async (id: string) => {
       const item = doc.shopping.find((s) => s.id === id);
+      const sketches = sketchesOf(new Set([id]));
       await mutate("hiwo: Artikel gelöscht", (d) => {
         d.shopping = d.shopping.filter((s) => s.id !== id);
+        dropSketches(d, new Set([id]));
       });
       if (item?.image_path) await removeFile(conn, item.image_path, item.image_sha, "hiwo: Produktfoto gelöscht").catch(() => {});
+      await removeSketchFiles(sketches);
     },
 
     setShoppingImage: async (id: string, file: File) => {
@@ -269,6 +289,27 @@ export function useActions() {
         }
       });
       if (old?.image_path) await removeFile(conn, old.image_path, old.image_sha, "hiwo: altes Produktfoto").catch(() => {});
+    },
+
+    // -- sketches: drawn-on copies of a photo, the original stays -------------
+    /** Saves the editor's result as a new sketch of `sourceId`; returns its id. */
+    saveSketch: async (sourceId: string, blob: Blob, width: number, height: number) => {
+      const id = newId();
+      const path = `fotos/skizzen/${sourceId}/${id}.jpg`;
+      const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Skizze hochgeladen"));
+      await mutate("hiwo: Skizze gespeichert", (d) => {
+        (d.sketches ??= []).push({ id, source_id: sourceId, path, sha, width, height, created_by: by, created_at: now() });
+      });
+      return id;
+    },
+
+    deleteSketch: async (id: string) => {
+      const sketch = doc.sketches?.find((k) => k.id === id);
+      if (!sketch) return;
+      await mutate("hiwo: Skizze gelöscht", (d) => {
+        d.sketches = (d.sketches ?? []).filter((k) => k.id !== id);
+      });
+      await removeSketchFiles([sketch]);
     },
   };
 }

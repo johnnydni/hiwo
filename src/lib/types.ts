@@ -69,6 +69,24 @@ export type ShoppingItem = {
   created_at: string;
 };
 
+/**
+ * A drawn-on copy of a photo (Ausgangsfoto, Variante or Produktfoto), saved
+ * from the image editor. The original stays untouched; every save is a new
+ * sketch, so the list doubles as version history.
+ */
+export type Sketch = {
+  id: string;
+  /** RoomPhoto id or ShoppingItem id the sketch belongs to */
+  source_id: string;
+  /** fotos/skizzen/<source>/<id>.jpg */
+  path: string;
+  sha: string;
+  width: number | null;
+  height: number | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type HiwoDoc = {
   schema: 2;
   home: Home;
@@ -76,4 +94,6 @@ export type HiwoDoc = {
   rooms: Room[];
   photos: RoomPhoto[];
   shopping: ShoppingItem[];
+  /** added later; missing in older files */
+  sketches?: Sketch[];
 };

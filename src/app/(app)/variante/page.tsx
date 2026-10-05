@@ -8,6 +8,7 @@ import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { ItemList } from "@/components/item-list";
 import { Photo } from "@/components/photo";
+import { PhotoTools } from "@/components/photo-tools";
 import { Sheet } from "@/components/sheet";
 import { basePhoto } from "@/lib/selectors";
 import type { RoomPhoto } from "@/lib/types";
@@ -41,6 +42,7 @@ function VariantView() {
     );
   const base = basePhoto(doc, room.id);
   const items = doc.shopping.filter((s) => s.variant_id === variant.id);
+  const shown = showBase && base ? base : variant;
 
   return (
     <div>
@@ -64,7 +66,7 @@ function VariantView() {
           <ArrowLeft size={20} strokeWidth={1.6} />
         </Link>
         {base && (
-          <div className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 rounded-full bg-white/90 p-1 text-[13px] backdrop-blur">
+          <div className="absolute bottom-3 left-3 inline-flex rounded-full md:left-1/2 md:-translate-x-1/2 bg-white/90 p-1 text-[13px] backdrop-blur">
             {[false, true].map((b) => (
               <button
                 key={String(b)}
@@ -76,6 +78,8 @@ function VariantView() {
             ))}
           </div>
         )}
+        {/* draws on whichever photo is showing */}
+        <PhotoTools sourceId={shown.id} path={shown.path} />
       </div>
 
       <div className="px-4 md:px-0">

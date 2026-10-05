@@ -124,6 +124,7 @@ for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].e
   await page.waitForSelector("text=Ausgangszustand", { timeout: 20000 });
 }
 const wohnzimmer = doc().rooms.find((r) => r.name === "Wohnzimmer");
+let sketchCheck = null;
 await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
 await page.waitForSelector("text=Ausgangszustand");
 for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
@@ -151,6 +152,68 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
     await page.waitForTimeout(600);
     await shot("05b-variant-before");
     await page.click("button:has-text('Variante')");
+
+    // draw on the variant, save it as a sketch; the original photo stays as it is
+    const variant = doc().photos.find((p) => p.name === "Japandi");
+    const original = Buffer.from(gh.files.get(variant.path));
+    await page.click("button[aria-label='Bild bearbeiten']");
+    const canvas = page.locator("canvas[aria-label='Zeichenfläche']");
+    await canvas.waitFor();
+    await page.waitForTimeout(300);
+    const b = await canvas.boundingBox();
+    const at = (x, y) => [b.x + b.width * x, b.y + b.height * y];
+    const line = async (...pts) => {
+      await page.mouse.move(...pts[0]);
+      await page.mouse.down();
+      for (const p of pts.slice(1)) await page.mouse.move(...p, { steps: 8 });
+      await page.mouse.up();
+    };
+    await line(at(0.15, 0.3), at(0.4, 0.65), at(0.7, 0.3));
+    await page.click("button[aria-label='Marker']");
+    await page.click("button[aria-label='Farbe #f5a524']");
+    await page.click("button[aria-label='Stärke 4']");
+    await line(at(0.1, 0.85), at(0.9, 0.85));
+    await page.click("button[aria-label='Pfeil']");
+    await page.click("button[aria-label='Farbe #ffffff']");
+    await line(at(0.85, 0.15), at(0.6, 0.45));
+    await page.click("button[aria-label='Text']");
+    await page.mouse.click(...at(0.5, 0.15));
+    await page.fill("input[placeholder^='Text']", "Sofa hierhin");
+    await page.click("button:has-text('Fertig')");
+    await page.click("button[aria-label='Rückgängig']");
+    await page.click("button[aria-label='Wiederholen']");
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/05c-editor.png` });
+    await page.click("button:has-text('Als Skizze sichern')");
+    await page.waitForSelector("[role=dialog] >> text=Version 1", { timeout: 15000 });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/05d-sketch.png` });
+    // keep drawing on the sketch: a second version next to the first
+    await page.click("[role=dialog] button:has-text('Weiterzeichnen')");
+    await canvas.waitFor();
+    await page.waitForTimeout(300);
+    await page.click("button[aria-label='Radierer']");
+    await line(at(0.3, 0.5), at(0.5, 0.5));
+    await page.click("button:has-text('Als Skizze sichern')");
+    await page.waitForSelector("[role=dialog] >> text=Version 2", { timeout: 15000 });
+    await page.click("[role=dialog] button:has-text('Skizzen')");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/05e-sketches.png` });
+    const versions = await page.locator("[role=dialog] button:has-text('Version')").count();
+    // delete version 2 again
+    await page.click("[role=dialog] button:has-text('Version 2')");
+    await page.click("[role=dialog] button:has-text('Löschen')");
+    await page.click("[role=dialog] button:has-text('Wirklich?')");
+    await page.waitForSelector("[role=dialog] button:has-text('Version 1')");
+    await page.waitForTimeout(800);
+    await page.keyboard.press("Escape");
+    sketchCheck = {
+      versionsShown: versions,
+      inDoc: (doc().sketches ?? []).length,
+      files: [...gh.files.keys()].filter((k) => k.startsWith("fotos/skizzen/")).length,
+      originalUnchanged: original.equals(gh.files.get(variant.path)),
+      badge: await page.locator("button[aria-label='Skizzen (1)']").count(),
+    };
   } else {
     await page.fill("input[placeholder^='z.B. Sofa']", "Samtsessel");
     await page.press("input[placeholder^='z.B. Sofa']", "Enter");
@@ -311,6 +374,7 @@ const summary = {
   keyLeftInUrl,
   concurrent,
   reorder,
+  sketchCheck,
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
   variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),
