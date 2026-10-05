@@ -84,7 +84,7 @@ export function MemberRowActions({ memberId, name }: { memberId: string; name: s
         <Button
           variant="secondary"
           className="w-full text-terracotta"
-          disabled={pending}
+          loading={pending}
           onClick={() =>
             start(async () => {
               await removeMember(memberId).catch(() => {});

@@ -46,7 +46,7 @@ function AddRoomSheet({ open, onClose, existing }: { open: boolean; onClose: () 
             ))}
           </div>
         )}
-        <Button className="w-full" disabled={busy || !name.trim()}>
+        <Button className="w-full" loading={busy} disabled={!name.trim()}>
           Zimmer hinzufügen
         </Button>
       </form>

@@ -92,7 +92,7 @@ export function ConnectForm({ next }: { next: string }) {
           nehmen.
         </p>
       )}
-      <Button className="w-full" disabled={busy}>
+      <Button className="w-full" loading={busy}>
         {publicRepo ? "Trotzdem verbinden" : "Verbinden"}
       </Button>
       <details className="pt-2 text-[13px] leading-relaxed text-muted">

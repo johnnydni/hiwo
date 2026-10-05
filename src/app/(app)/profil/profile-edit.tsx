@@ -46,7 +46,7 @@ export function ProfileEdit({ name, homeName, city }: { name: string; homeName: 
             <Input name="city" defaultValue={city} />
           </label>
           {error && <p className="text-[13px] text-terracotta">{error}</p>}
-          <Button className="w-full" disabled={pending}>Speichern</Button>
+          <Button className="w-full" loading={pending}>Speichern</Button>
         </form>
       </Sheet>
     </>

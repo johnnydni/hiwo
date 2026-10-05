@@ -31,7 +31,7 @@ export function VariantGrid({
         const mine = items.filter((i) => i.variant_id === v.id && i.status === "open");
         const total = mine.reduce((s, i) => s + (i.price_cents ?? 0), 0);
         return (
-          <Link key={v.id} href={`/variante?id=${v.id}`} className="group animate-fade-up block">
+          <Link key={v.id} href={`/variante?id=${v.id}`} className="group animate-fade-up block transition-transform duration-150 active:scale-[0.98]">
             <Photo path={v.path} alt={v.name ?? ""} className="aspect-[4/3] rounded-[16px]" />
             <p className="mt-1.5 truncate text-[14px] font-medium">{v.name}</p>
             <p className="text-[12px] text-muted">

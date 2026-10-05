@@ -91,7 +91,7 @@ const photos = [
 ];
 const shopping = [
   item("s1", "Leinensofa, 3-Sitzer", "r0", "v0", 129900, "open", { url: "https://www.example-moebel.de/sofa", note: "Farbe Sand, Bezug abnehmbar" }),
-  item("s2", "Couchtisch Eiche", "r0", "v0", 34900),
+  item("s2", "Couchtisch Eiche", "r0", "v0", 34900, "open", { image_path: "fotos/einkauf/s2.jpg", image_sha: "x" }),
   item("s3", "Papierleuchte Ø 60 cm", "r0", "v0", 8990),
   item("s4", "Samtsessel", "r0", "v1", 45900),
   item("s5", "Glühbirnen E27 warmweiß", "r0", null, 1299),
@@ -103,6 +103,9 @@ const shopping = [
   item("s11", "Gewürzregal", "r2", null, 3499),
   item("s12", "Ein sehr langer Artikelname, der auf dem Handy umbrechen oder abgeschnitten werden muss", "r4", null, 19900),
 ];
+gh.files.set("fotos/einkauf/s2.jpg", jpg[2]);
+gh.files.set("fotos/skizzen/b0/k1.jpg", jpg[1]);
+const sketches = [{ id: "k1", source_id: "b0", path: "fotos/skizzen/b0/k1.jpg", sha: "x", width: 1200, height: 900, created_by: "m2", created_at: t(4) }];
 const doc = {
   schema: 2,
   home: { id: "h1", name: "Altbau Schwabing", city: "München", cover_photo_id: "b0", created_at: t(1) },
@@ -110,7 +113,7 @@ const doc = {
     { id: "m1", name: "Illy", role: "owner", joined_at: t(1) },
     { id: "m2", name: "Nadin", role: "member", joined_at: t(2) },
   ],
-  rooms, photos, shopping,
+  rooms, photos, shopping, sketches,
 };
 gh.files.set("hiwo.json", Buffer.from(JSON.stringify(doc, null, 2)));
 
@@ -128,6 +131,7 @@ const PAGES = {
   variante: "/variante/?id=v0",
   einkauf: "/einkauf/",
   artikel: "/artikel/?id=s1",
+  "artikel-foto": "/artikel/?id=s2",
   profil: "/profil/",
   mitbewohner: "/profil/mitbewohner/",
 };

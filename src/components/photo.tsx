@@ -10,18 +10,25 @@ export function Photo({
   alt = "",
   className,
   imgClassName,
+  fit = "cover",
 }: {
   path: string | null | undefined;
   alt?: string;
   className?: string;
   imgClassName?: string;
+  /** "contain": whole picture on white with a 5% margin (product photos) */
+  fit?: "cover" | "contain";
 }) {
   const url = usePhotoUrl(path);
   return (
-    <div className={cx("relative overflow-hidden bg-line", className)}>
+    <div className={cx("relative overflow-hidden", fit === "contain" && url ? "bg-white" : "bg-line", className)}>
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={alt} className={cx("animate-fade-in h-full w-full object-cover", imgClassName)} />
+        <img
+          src={url}
+          alt={alt}
+          className={cx("animate-fade-in h-full w-full", fit === "contain" ? "object-contain p-[5%]" : "object-cover", imgClassName)}
+        />
       ) : path ? (
         <PhotoPlaceholder className="animate-shimmer h-full w-full" />
       ) : (

@@ -10,7 +10,7 @@ export function RoomCard({ room, compact }: { room: RoomCardData; compact?: bool
     room.openCount > 0 && `${room.openCount} auf der Liste`,
   ].filter(Boolean);
   return (
-    <Link href={`/zimmer?id=${room.id}`} className="group block animate-fade-up">
+    <Link href={`/zimmer?id=${room.id}`} className="group block animate-fade-up transition-transform duration-150 active:scale-[0.98]">
       <Photo
         path={room.coverPath}
         alt={room.name}

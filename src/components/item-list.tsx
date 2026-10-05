@@ -2,7 +2,7 @@
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, ChevronRight, Plus } from "lucide-react";
+import { Check, ChevronRight, Loader2, Plus } from "lucide-react";
 import { useActions, targetValue } from "./use-actions";
 import { ItemThumb } from "./item-thumb";
 import { formatPrice } from "@/lib/format";
@@ -22,10 +22,15 @@ export function ItemList({
   const { addShoppingItem, setShoppingDone } = useActions();
   const [name, setName] = useState("");
   const [showDone, setShowDone] = useState(false);
-  const [pending, start] = useTransition();
+  const [, start] = useTransition();
   const input = useRef<HTMLInputElement>(null);
-  const [optimistic, setOptimistic] = useOptimistic(items, (state, { id, done }: { id: string; done: boolean }) =>
-    state.map((i) => (i.id === id ? { ...i, status: done ? ("done" as const) : ("open" as const) } : i)),
+  // ticks and new rows show at once; the commit to GitHub follows
+  const [optimistic, apply] = useOptimistic(
+    items,
+    (state, a: { type: "toggle"; id: string; done: boolean } | { type: "add"; item: ShoppingItem }) =>
+      a.type === "add"
+        ? [...state, a.item]
+        : state.map((i) => (i.id === a.id ? { ...i, status: a.done ? ("done" as const) : ("open" as const) } : i)),
   );
   const open = optimistic.filter((i) => i.status === "open");
   const done = optimistic.filter((i) => i.status === "done");
@@ -33,16 +38,20 @@ export function ItemList({
 
   const toggle = (it: ShoppingItem) =>
     start(async () => {
-      setOptimistic({ id: it.id, done: it.status !== "done" });
+      apply({ type: "toggle", id: it.id, done: it.status !== "done" });
       await setShoppingDone(it.id, it.status !== "done").catch(() => {});
     });
 
   return (
     <div>
       <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
-        {open.map((it) => (
-          <ItemRow key={it.id} item={it} onToggle={() => toggle(it)} />
-        ))}
+        {open.map((it) =>
+          it.id.startsWith("pending:") ? (
+            <ItemRow key={it.id} item={it} pending onToggle={() => {}} />
+          ) : (
+            <ItemRow key={it.id} item={it} onToggle={() => toggle(it)} />
+          ),
+        )}
         {showDone && done.map((it) => <ItemRow key={it.id} item={it} onToggle={() => toggle(it)} />)}
         <li>
           <form
@@ -54,9 +63,10 @@ export function ItemList({
               fd.set("name", value);
               fd.set("target", targetValue(target));
               setName("");
+              input.current?.focus();
               start(async () => {
+                apply({ type: "add", item: pendingItem(value, target) });
                 await addShoppingItem(fd).catch(() => setName(value));
-                input.current?.focus();
               });
             }}
             className="flex items-center gap-3 py-2"
@@ -71,7 +81,7 @@ export function ItemList({
               className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-faint"
             />
             {name.trim() && (
-              <button disabled={pending} className="-mr-2 h-11 px-2 text-[14px] font-medium">
+              <button className="-mr-2 h-11 px-2 text-[14px] font-medium">
                 Hinzufügen
               </button>
             )}
@@ -93,10 +103,30 @@ export function ItemList({
 }
 
 /** One shopping item: check circle (44px tap area), optional product photo, link to the item. */
-export function ItemRow({ item, onToggle, meta }: { item: ShoppingItem; onToggle: () => void; meta?: string }) {
+export function ItemRow({
+  item,
+  onToggle,
+  meta,
+  pending,
+}: {
+  item: ShoppingItem;
+  onToggle: () => void;
+  meta?: string;
+  /** not saved yet: spinner instead of the check circle, no link */
+  pending?: boolean;
+}) {
   const done = item.status === "done";
+  if (pending)
+    return (
+      <li className="animate-fade-up flex items-center gap-1.5 py-1.5 text-muted">
+        <span className="-ml-2.5 flex h-11 w-11 shrink-0 items-center justify-center">
+          <Loader2 size={18} className="animate-spin" />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[15px]">{item.name}</span>
+      </li>
+    );
   return (
-    <li className="flex items-center gap-1.5 py-1.5">
+    <li className="animate-fade-up flex items-center gap-1.5 py-1.5">
       <button
         onClick={onToggle}
         aria-label={done ? "Wieder öffnen" : "Als erledigt markieren"}
@@ -124,4 +154,22 @@ export function ItemRow({ item, onToggle, meta }: { item: ShoppingItem; onToggle
       </Link>
     </li>
   );
+}
+
+function pendingItem(name: string, target: { room_id: string | null; variant_id: string | null }): ShoppingItem {
+  return {
+    id: `pending:${Date.now()}`,
+    ...target,
+    name,
+    price_cents: null,
+    note: null,
+    url: null,
+    image_path: null,
+    image_sha: null,
+    status: "open",
+    created_by: null,
+    done_by: null,
+    done_at: null,
+    created_at: new Date().toISOString(),
+  };
 }

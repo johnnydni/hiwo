@@ -8,6 +8,7 @@ import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { ItemList } from "@/components/item-list";
 import { Photo } from "@/components/photo";
+import { PhotoTools } from "@/components/photo-tools";
 import { Sheet } from "@/components/sheet";
 import { basePhoto } from "@/lib/selectors";
 import type { RoomPhoto } from "@/lib/types";
@@ -41,15 +42,22 @@ function VariantView() {
     );
   const base = basePhoto(doc, room.id);
   const items = doc.shopping.filter((s) => s.variant_id === variant.id);
+  const shown = showBase && base ? base : variant;
 
   return (
     <div>
       <div className="relative md:pt-10">
-        <Photo
-          path={showBase && base ? base.path : variant.path}
-          alt={variant.name ?? ""}
-          className="aspect-[4/3] md:aspect-[21/9] md:rounded-image"
-        />
+        {/* both photos stay loaded; the switch crossfades instead of reloading */}
+        <div className="relative aspect-[4/3] overflow-hidden md:aspect-[21/9] md:rounded-image">
+          <Photo path={variant.path} alt={variant.name ?? ""} className="absolute inset-0" />
+          {base && (
+            <Photo
+              path={base.path}
+              alt="Vorher"
+              className={cx("absolute inset-0 transition-opacity duration-300", showBase ? "opacity-100" : "opacity-0")}
+            />
+          )}
+        </div>
         <Link
           href={`/zimmer?id=${room.id}`}
           aria-label="Zurück"
@@ -58,18 +66,20 @@ function VariantView() {
           <ArrowLeft size={20} strokeWidth={1.6} />
         </Link>
         {base && (
-          <div className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 rounded-full bg-white/90 p-1 text-[13px] backdrop-blur">
+          <div className="absolute bottom-3 left-3 inline-flex rounded-full md:left-1/2 md:-translate-x-1/2 bg-white/90 p-1 text-[13px] backdrop-blur">
             {[false, true].map((b) => (
               <button
                 key={String(b)}
                 onClick={() => setShowBase(b)}
-                className={cx("rounded-full px-4 py-1.5 transition", showBase === b ? "bg-ink text-white" : "text-ink/70")}
+                className={cx("rounded-full px-4 py-2 transition-colors duration-200", showBase === b ? "bg-ink text-white" : "text-ink/70")}
               >
                 {b ? "Vorher" : "Variante"}
               </button>
             ))}
           </div>
         )}
+        {/* draws on whichever photo is showing */}
+        <PhotoTools sourceId={shown.id} path={shown.path} />
       </div>
 
       <div className="px-4 md:px-0">
@@ -129,7 +139,7 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
             <Label>Notiz</Label>
             <Textarea name="note" defaultValue={variant.note ?? ""} placeholder="Was gefällt euch daran?" />
           </label>
-          <Button className="w-full" disabled={pending}>
+          <Button className="w-full" loading={pending}>
             Speichern
           </Button>
         </form>

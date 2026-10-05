@@ -6,6 +6,7 @@ import { Check, ImagePlus, Loader2, RotateCcw } from "lucide-react";
 import { targetValue, useActions } from "@/components/use-actions";
 import { TargetSelect } from "@/components/target-select";
 import { usePhotoUrl } from "@/components/app-context";
+import { PhotoTools } from "@/components/photo-tools";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label, Textarea, cx } from "@/components/ui";
@@ -23,7 +24,7 @@ export function ItemActions({ item }: { item: ShoppingItem }) {
       <Button
         className="w-full"
         variant={done ? "secondary" : "primary"}
-        disabled={pending}
+        loading={pending}
         onClick={() =>
           start(async () => {
             await actions.setShoppingDone(item.id, !done).catch((e) => setError(e.message));
@@ -73,7 +74,7 @@ export function ItemActions({ item }: { item: ShoppingItem }) {
             <Label>Notiz</Label>
             <Textarea name="note" defaultValue={item.note ?? ""} />
           </label>
-          <Button className="w-full" disabled={pending}>Speichern</Button>
+          <Button className="w-full" loading={pending}>Speichern</Button>
           <button
             type="button"
             onClick={() => (confirm
@@ -117,43 +118,47 @@ export function ItemImage({ itemId, path, remote }: { itemId: string; path: stri
 
   return (
     <>
-      <button
-        onClick={() => input.current?.click()}
-        className={cx(
-          "relative block w-full overflow-hidden rounded-image",
-          // without a photo a slim drop zone is enough; most items never get one
-          path ? "aspect-[4/3] bg-line" : fromLink ? "aspect-[4/3] bg-white" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
-        )}
-        aria-label={url ? "Produktfoto ändern" : "Produktfoto hinzufügen"}
-      >
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt=""
-            referrerPolicy="no-referrer"
-            onError={() => fromLink && setRemoteBroken(true)}
-            className={fromLink ? "h-full w-full object-contain p-4" : "h-full w-full object-cover"}
-          />
-        ) : path ? (
-          <span className="animate-shimmer block h-full w-full bg-line" />
-        ) : (
-          <span className="flex h-full items-center justify-center gap-2 text-[14px] text-muted md:flex-col">
-            {busy ? <Loader2 className="animate-spin" /> : <ImagePlus size={22} strokeWidth={1.4} />}
-            Produktfoto hinzufügen
-          </span>
-        )}
-        {fromLink && !busy && (
-          <span className="absolute right-3 bottom-3 rounded-full bg-ink/70 px-3 py-1 text-[12px] text-white">
-            Bild aus dem Link · eigenes Foto?
-          </span>
-        )}
-        {url && busy && (
-          <span className="absolute inset-0 flex items-center justify-center bg-white/50">
-            <Loader2 className="animate-spin" />
-          </span>
-        )}
-      </button>
+      <div className="relative">
+        <button
+          onClick={() => input.current?.click()}
+          className={cx(
+            "relative block w-full overflow-hidden rounded-image",
+            // without a photo a slim drop zone is enough; most items never get one
+            path ? (url ? "aspect-[4/3] bg-white" : "aspect-[4/3] bg-line") : fromLink ? "aspect-[4/3] bg-white" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
+          )}
+          aria-label={url ? "Produktfoto ändern" : "Produktfoto hinzufügen"}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={() => fromLink && setRemoteBroken(true)}
+              className="animate-fade-in h-full w-full object-contain p-[5%]"
+            />
+          ) : path ? (
+            <span className="animate-shimmer block h-full w-full bg-line" />
+          ) : (
+            <span className="flex h-full items-center justify-center gap-2 text-[14px] text-muted md:flex-col">
+              {busy ? <Loader2 className="animate-spin" /> : <ImagePlus size={22} strokeWidth={1.4} />}
+              Produktfoto hinzufügen
+            </span>
+          )}
+          {fromLink && !busy && (
+            <span className="absolute bottom-3 left-3 rounded-full bg-ink/70 px-3 py-1 text-[12px] text-white">
+              Bild aus dem Link · eigenes Foto?
+            </span>
+          )}
+          {url && busy && (
+            <span className="absolute inset-0 flex items-center justify-center bg-white/50">
+              <Loader2 className="animate-spin" />
+            </span>
+          )}
+        </button>
+        {/* only own photos: pictures hotlinked from a shop can't be drawn on and saved */}
+        {path && own && <PhotoTools sourceId={itemId} path={path} />}
+      </div>
       {failed && <p className="mt-2 text-center text-[13px] text-terracotta">Das Foto konnte nicht gespeichert werden.</p>}
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => upload(e.target.files)} />
     </>

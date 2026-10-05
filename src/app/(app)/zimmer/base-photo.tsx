@@ -6,6 +6,7 @@ import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { usePickPhoto } from "@/components/pick-photo";
 import { Photo } from "@/components/photo";
+import { PhotoTools } from "@/components/photo-tools";
 import { Sheet } from "@/components/sheet";
 import { cx } from "@/components/ui";
 import type { RoomPhoto } from "@/lib/types";
@@ -51,17 +52,20 @@ export function BasePhoto({ roomId, roomName, photo }: { roomId: string; roomNam
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="relative block w-full" aria-label="Ausgangsfoto">
-        <Photo path={photo.path} alt={roomName} className="aspect-[4/3] md:aspect-[21/9] md:rounded-image" />
-        <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[12px] font-medium backdrop-blur">
-          Ausgangszustand
-        </span>
-        {picker.busy && (
-          <span className="absolute inset-0 flex items-center justify-center bg-white/50 md:rounded-image">
-            <Loader2 className="animate-spin" />
+      <div className="relative">
+        <button onClick={() => setOpen(true)} className="relative block w-full" aria-label="Ausgangsfoto">
+          <Photo path={photo.path} alt={roomName} className="aspect-[4/3] md:aspect-[21/9] md:rounded-image" />
+          <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[12px] font-medium backdrop-blur">
+            Ausgangszustand
           </span>
-        )}
-      </button>
+          {picker.busy && (
+            <span className="absolute inset-0 flex items-center justify-center bg-white/50 md:rounded-image">
+              <Loader2 className="animate-spin" />
+            </span>
+          )}
+        </button>
+        <PhotoTools sourceId={photo.id} path={photo.path} />
+      </div>
       {picker.input}
       {picker.error && <p className="px-4 pt-2 text-[13px] text-terracotta">{picker.error}</p>}
       <Sheet open={open} onClose={close} title="Ausgangsfoto">
@@ -98,12 +102,14 @@ export function Action({
   onClick,
   disabled,
   danger,
+  loading,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  loading?: boolean;
 }) {
   return (
     <button
@@ -114,7 +120,7 @@ export function Action({
         danger && "text-terracotta",
       )}
     >
-      {icon}
+      {loading ? <Loader2 size={18} className="animate-spin" /> : icon}
       {children}
     </button>
   );
