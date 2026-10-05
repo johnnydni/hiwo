@@ -2,7 +2,9 @@
 
 Mobile-first Web-App für das eigene Zuhause: Wohnung und Zimmer verwalten, Fotos sammeln, Einrichtung festhalten und gemeinsame Einkaufslisten mit Familie oder Mitbewohnern pflegen. KI-Varianten folgen in Phase 2.
 
-**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · Supabase (Auth, Postgres mit RLS, Storage, Realtime) · Lucide Icons
+**Stack:** Next.js 15 als statischer Export · TypeScript · Tailwind CSS 4 · Supabase (Auth, Postgres mit RLS, Storage, Realtime) · Lucide Icons
+
+hiwo hat keinen eigenen Server: Die Seite ist reines HTML/JS (läuft auf GitHub Pages), alle Daten gehen direkt vom Browser zu Supabase. Sicherheit kommt aus den RLS-Regeln in der Datenbank, nicht aus dem Frontend.
 
 ## Stand: Phase 1
 
@@ -50,14 +52,20 @@ Anmeldecodes landen lokal in Mailpit: http://127.0.0.1:54324
 End-to-end-Durchlauf mit Screenshots (zwei Nutzer, Einladung, Einkauf):
 
 ```bash
-npm run build && npx next start -p 3000 &
-npm run db:reset && npm run e2e   # Screenshots in e2e-output/
+NEXT_PUBLIC_BASE_PATH=/hiwo npm run build
+mkdir -p /tmp/site && cp -r out /tmp/site/hiwo && (cd /tmp/site && python3 -m http.server 3000 &)
+npm run db:reset && CHROMIUM_PATH=<pfad> npm run e2e   # Screenshots in e2e-output/
 ```
 
-## Supabase in der Cloud einrichten
+## Auf GitHub Pages veröffentlichen
 
-1. Neues Projekt anlegen, Migration ausführen: `npx supabase link --project-ref <ref> && npx supabase db push`
+1. **Supabase-Projekt** auf supabase.com anlegen. Im SQL-Editor den Inhalt von `supabase/migrations/20261004000000_init.sql` ausführen.
 2. **Auth → Email Templates → Magic Link**: Inhalt aus `supabase/templates/magic_link.html` übernehmen (enthält `{{ .Token }}`, sonst kommt kein Code an).
-3. **Auth → URL Configuration**: Site URL und Redirect-URLs auf die Produktionsdomain setzen.
-4. Für echten Mailversand eigenes SMTP hinterlegen (der eingebaute Versand ist stark limitiert).
-5. `NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel o.ä. setzen.
+3. **Auth → URL Configuration**: Site URL `https://<user>.github.io/hiwo` eintragen.
+4. Im GitHub-Repo unter **Settings → Secrets and variables → Actions → Variables** anlegen:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+5. **Settings → Pages → Source: GitHub Actions** wählen.
+6. Unter **Actions** den Workflow „Deploy to GitHub Pages“ starten (läuft danach bei jedem Push auf `main`).
+
+Für echten Mailversand an mehr als ein paar Personen pro Stunde eigenes SMTP in Supabase hinterlegen.

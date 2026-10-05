@@ -1,16 +1,25 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight, Home, Users, ShoppingBag, Sparkles, Bell, Palette, CircleHelp, LogOut } from "lucide-react";
-import { getContext } from "@/lib/data";
+import { useApp, useData } from "@/components/app-context";
+import { signOut } from "@/lib/api";
 import { displayName, plural } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import { ProfileEdit } from "./profile-edit";
 
-export default async function ProfilPage() {
-  const { supabase, profile, home } = await getContext();
-  const [{ count: rooms }, { count: members }] = await Promise.all([
-    supabase.from("rooms").select("id", { count: "exact", head: true }).eq("home_id", home.id),
-    supabase.from("home_members").select("user_id", { count: "exact", head: true }).eq("home_id", home.id),
-  ]);
+export default function ProfilPage() {
+  const { profile, home } = useApp();
+  const router = useRouter();
+  const { data } = useData(async ({ supabase, home }) => {
+    const [{ count: rooms }, { count: members }] = await Promise.all([
+      supabase.from("rooms").select("id", { count: "exact", head: true }).eq("home_id", home.id),
+      supabase.from("home_members").select("user_id", { count: "exact", head: true }).eq("home_id", home.id),
+    ]);
+    return { rooms, members };
+  });
+  const { rooms, members } = data ?? { rooms: 0, members: 1 };
   const name = displayName(profile);
 
   return (
@@ -37,12 +46,17 @@ export default async function ProfilPage() {
         <Row href="mailto:hallo@hiwo.app" icon={CircleHelp} label="Hilfe & Support" />
       </ul>
 
-      <form action="/auth/signout" method="post" className="mt-4">
-        <button className="flex w-full items-center gap-3 rounded-card bg-card px-4 py-4 text-left text-[15px] shadow-soft">
+      <div className="mt-4">
+        <button
+          onClick={async () => {
+            await signOut();
+            router.replace("/login");
+          }}
+          className="flex w-full items-center gap-3 rounded-card bg-card px-4 py-4 text-left text-[15px] shadow-soft">
           <LogOut size={19} strokeWidth={1.6} className="text-muted" />
           Abmelden
         </button>
-      </form>
+      </div>
       <p className="mt-10 text-center font-serif text-[18px] text-faint">hiwo · hier wohne ich.</p>
     </div>
   );

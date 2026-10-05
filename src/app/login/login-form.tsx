@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { appUrl, createClient } from "@/lib/supabase";
 import { Button, Input } from "@/components/ui";
 
 export function LoginForm({ next }: { next: string }) {
@@ -20,7 +20,7 @@ export function LoginForm({ next }: { next: string }) {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${location.origin}/auth/confirm?next=${encodeURIComponent(next)}` },
+      options: { emailRedirectTo: appUrl(`/auth/confirm/?next=${encodeURIComponent(next)}`) },
     });
     setBusy(false);
     if (error) setError("Das hat nicht geklappt. Bitte prüfe die E-Mail-Adresse.");
@@ -40,7 +40,6 @@ export function LoginForm({ next }: { next: string }) {
     }
     await supabase.rpc("accept_pending_invites");
     router.replace(next);
-    router.refresh();
   }
 
   if (step === "code") {

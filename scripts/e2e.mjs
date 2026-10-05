@@ -3,7 +3,8 @@ import { chromium } from "playwright";
 
 const OUT = process.env.E2E_OUT ?? "e2e-output";
 fs.mkdirSync(OUT, { recursive: true });
-const BASE = "http://127.0.0.1:3000";
+const BASE = process.env.E2E_BASE ?? "http://127.0.0.1:3000/hiwo";
+const HOME_URL = new RegExp(`^${BASE}/?$`);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 
 // --- synthetic interior photos -------------------------------------------
@@ -69,7 +70,7 @@ async function latestCode(email) {
 }
 
 async function login(p, email) {
-  await p.goto(`${BASE}/login`);
+  if (!/\/login/.test(p.url())) await p.goto(`${BASE}/login/`);
   await p.fill("input[type=email]", email);
   await p.click("text=Weiter");
   await p.waitForSelector("text=Wir haben dir einen Code");
@@ -78,17 +79,17 @@ async function login(p, email) {
   await p.click("button:has-text('Anmelden')");
 }
 
-await page.goto(BASE);
-await page.waitForURL("**/login");
+await page.goto(`${BASE}/`);
+await page.waitForURL(/\/login\/?/);
 await shot("01-login");
 await login(page, "illy@example.com");
-await page.waitForURL("**/willkommen");
+await page.waitForURL(/\/willkommen\/?$/);
 await shot("02-onboarding");
 await page.fill("input[name=display_name]", "Illy");
 await page.fill("input[name=home_name]", "Meine Wohnung");
 await page.fill("input[name=city]", "München");
 await page.click("button:has-text('Wohnung anlegen')");
-await page.waitForURL(BASE + "/");
+await page.waitForURL(HOME_URL);
 await page.waitForSelector("text=Noch keine Zimmer");
 await shot("03-home-empty");
 
@@ -98,7 +99,7 @@ for (const [i, name] of ["Wohnzimmer", "Schlafzimmer", "Küche", "Badezimmer"].e
   await page.click("button[aria-label='Zimmer hinzufügen']");
   await page.click(`button:has-text('${name}')`);
   await page.click("form button:has-text('Zimmer hinzufügen')");
-  await page.waitForURL("**/wohnung/*-*");
+  await page.waitForURL(/\/zimmer\/?\?id=/);
   if (i === 0) await shot("04-room-empty");
   const fileInput = page.locator("input[type=file]").first();
   await fileInput.setInputFiles(i === 0 ? [`${OUT}/room0.jpg`, `${OUT}/room1.jpg`, `${OUT}/room2.jpg`] : [`${OUT}/room${i}.jpg`]);
@@ -145,11 +146,11 @@ await page.click("text=Nach Zimmer");
 await shot("08-shopping-room");
 await page.click("text=Gesamte Wohnung");
 await page.click("li:has-text('Stehlampe') a");
-await page.waitForURL("**/einkauf/*-*");
+await page.waitForURL(/\/artikel\/?\?id=/);
 await shot("09-item");
 
 // home dashboard
-await page.goto(BASE);
+await page.goto(`${BASE}/`);
 await page.waitForTimeout(500);
 await shot("10-home");
 
@@ -176,11 +177,11 @@ const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, d
 const p2 = await ctx2.newPage();
 p2.on("pageerror", (e) => errors.push("p2 " + e));
 await login(p2, "nadin@example.com");
-await p2.waitForURL("**/willkommen");
+await p2.waitForURL(/\/willkommen\/?$/);
 await p2.fill("input[name=display_name]", "Nadin");
 await p2.click("button:has-text('Weiter')");
-await p2.waitForURL(BASE + "/");
-const sawHome = await p2.isVisible("text=Meine Wohnung");
+await p2.waitForURL(HOME_URL);
+const sawHome = await p2.waitForSelector("text=Meine Wohnung").then(() => true, () => false);
 await p2.goto(`${BASE}/einkauf`);
 await p2.locator("li:has-text('Nachttisch') button[aria-label='Als erledigt markieren']").click();
 await page.goto(`${BASE}/einkauf`);
@@ -192,7 +193,7 @@ const pd = await ctxD.newPage();
 await pd.goto(`${BASE}/wohnung`);
 await pd.waitForTimeout(500);
 await pd.screenshot({ path: `${OUT}/15-desktop-rooms.png` });
-await pd.goto(BASE);
+await pd.goto(`${BASE}/`);
 await pd.waitForTimeout(500);
 await pd.screenshot({ path: `${OUT}/16-desktop-home.png` });
 
@@ -204,5 +205,31 @@ await page.fill("input[name=contact]", "+49 170 1234567");
 await page.click("form button:has-text('Einladen')");
 await page.waitForSelector("text=Mama wurde eingeladen.");
 
-console.log(JSON.stringify({ sawHome, errors }, null, 2));
+// Mama joins through the shared link (needs the local service key to read the token)
+let joinedByLink = "skipped";
+if (process.env.E2E_SERVICE_KEY) {
+  const rows = await fetch(`${process.env.E2E_SUPABASE_URL ?? "http://127.0.0.1:54321"}/rest/v1/home_invites?name=eq.Mama&select=token`, {
+    headers: { apikey: process.env.E2E_SERVICE_KEY, Authorization: `Bearer ${process.env.E2E_SERVICE_KEY}` },
+  }).then((r) => r.json());
+  const ctx4 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-DE" });
+  const p4 = await ctx4.newPage();
+  p4.on("pageerror", (e) => errors.push("p4 " + e));
+  await p4.goto(`${BASE}/einladung/?t=${rows[0].token}`);
+  await p4.waitForSelector("text=lädt dich in");
+  await p4.screenshot({ path: `${OUT}/17-invite-link.png` });
+  await p4.click("text=Anmelden und beitreten");
+  await p4.waitForURL(/\/login\/?\?next=/);
+  await login(p4, "mama@example.com");
+  await p4.waitForSelector("text=Einladung annehmen");
+  await p4.click("text=Einladung annehmen");
+  await p4.waitForURL(/\/willkommen\/?$/);
+  await p4.fill("input[name=display_name]", "Mama");
+  await p4.click("button:has-text('Weiter')");
+  await p4.waitForURL(HOME_URL);
+  await p4.goto(`${BASE}/wohnung/`);
+  await p4.waitForSelector("text=Wohnzimmer");
+  joinedByLink = "ok";
+}
+
+console.log(JSON.stringify({ sawHome, joinedByLink, errors }, null, 2));
 await browser.close();

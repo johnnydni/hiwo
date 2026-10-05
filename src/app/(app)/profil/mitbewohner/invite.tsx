@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, MoreHorizontal, Plus, Share2 } from "lucide-react";
-import { createInvite, deleteInvite, removeMember } from "@/app/actions";
+import { createInvite, deleteInvite, removeMember } from "@/lib/api";
+import { appUrl } from "@/lib/supabase";
+import { useApp } from "@/components/app-context";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label } from "@/components/ui";
 
 function inviteUrl(token: string) {
-  return `${location.origin}/einladung/${token}`;
+  return appUrl(`/einladung/?t=${token}`);
 }
 
 async function share(token: string, name?: string) {
@@ -30,6 +32,7 @@ export function InviteButton() {
   const [result, setResult] = useState<{ token: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [pending, start] = useTransition();
+  const app = useApp();
   const close = () => {
     setOpen(false);
     setResult(null);
@@ -78,7 +81,14 @@ export function InviteButton() {
           </div>
         ) : (
           <form
-            action={(fd) => start(async () => setResult(await createInvite(fd)))}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              start(async () => {
+                setResult(await createInvite(app, fd));
+                app.bump();
+              });
+            }}
             className="space-y-4"
           >
             <p className="text-[14px] leading-relaxed text-muted">
@@ -111,6 +121,7 @@ export function InviteButton() {
 
 export function InviteRowActions({ id, token }: { id: string; token: string }) {
   const [pending, start] = useTransition();
+  const { bump } = useApp();
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-1">
@@ -127,7 +138,12 @@ export function InviteRowActions({ id, token }: { id: string; token: string }) {
         {copied ? <Check size={17} /> : <Share2 size={17} strokeWidth={1.6} />}
       </button>
       <button
-        onClick={() => start(() => deleteInvite(id))}
+        onClick={() =>
+          start(async () => {
+            await deleteInvite(id);
+            bump();
+          })
+        }
         disabled={pending}
         className="rounded-full px-2 py-1 text-[13px] text-muted hover:text-terracotta"
       >
@@ -140,6 +156,7 @@ export function InviteRowActions({ id, token }: { id: string; token: string }) {
 export function MemberRowActions({ userId, name }: { userId: string; name: string }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+  const app = useApp();
   return (
     <>
       <button aria-label="Mehr" onClick={() => setOpen(true)} className="rounded-full p-2 text-muted hover:text-ink">
@@ -150,7 +167,13 @@ export function MemberRowActions({ userId, name }: { userId: string; name: strin
           variant="secondary"
           className="w-full text-terracotta"
           disabled={pending}
-          onClick={() => start(async () => { await removeMember(userId); setOpen(false); })}
+          onClick={() =>
+            start(async () => {
+              await removeMember(app, userId);
+              setOpen(false);
+              app.bump();
+            })
+          }
         >
           Aus der Wohnung entfernen
         </Button>

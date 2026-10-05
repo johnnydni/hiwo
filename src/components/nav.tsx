@@ -12,8 +12,12 @@ const items = [
   { href: "/profil", label: "Profil", icon: User },
 ];
 
+// Detail pages belong to the tab they were opened from.
+const ALIASES: Record<string, string[]> = { "/wohnung": ["/zimmer"], "/einkauf": ["/artikel"] };
+
 function isActive(path: string, href: string) {
-  return href === "/" ? path === "/" : path.startsWith(href);
+  if (href === "/") return path === "/";
+  return [href, ...(ALIASES[href] ?? [])].some((p) => path.startsWith(p));
 }
 
 export function BottomNav() {

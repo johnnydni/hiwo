@@ -1,12 +1,15 @@
-import { getContext } from "@/lib/data";
+"use client";
+
+import { useApp, useData } from "@/components/app-context";
 import { displayName, relativeDay } from "@/lib/format";
 import type { Invite, Member } from "@/lib/types";
 import { Avatar, PageHeader } from "@/components/ui";
 import { InviteButton, InviteRowActions, MemberRowActions } from "./invite";
 
-export default async function MitbewohnerPage() {
-  const { supabase, home, userId, role } = await getContext();
-  const [{ data: members }, { data: invites }] = await Promise.all([
+export default function MitbewohnerPage() {
+  const { home, userId, role } = useApp();
+  const { data } = useData(async ({ supabase, home }) => {
+    const [{ data: members }, { data: invites }] = await Promise.all([
     supabase
       .from("home_members")
       .select("user_id, role, created_at, profile:profiles(id,email,display_name,avatar_path)")
@@ -19,10 +22,12 @@ export default async function MitbewohnerPage() {
       .is("accepted_at", null)
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
-  ]);
-
-  const list = (members ?? []) as unknown as Member[];
-  const pending = (invites ?? []) as Invite[];
+    ]);
+    return { members: (members ?? []) as unknown as Member[], invites: (invites ?? []) as Invite[] };
+  });
+  if (!data) return null;
+  const list = data.members;
+  const pending = data.invites;
 
   return (
     <div>

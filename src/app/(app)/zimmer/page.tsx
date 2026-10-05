@@ -1,44 +1,76 @@
+"use client";
+
+import { Suspense } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ChevronRight } from "lucide-react";
-import { getContext, signPaths } from "@/lib/data";
+import { signPaths } from "@/lib/data";
+import { useApp, useData } from "@/components/app-context";
 import { formatPrice, plural } from "@/lib/format";
 import type { FurnitureItem, RoomPhoto, ShoppingItem } from "@/lib/types";
-import { PhotoPlaceholder } from "@/components/ui";
+import { EmptyState, PhotoPlaceholder, buttonClass } from "@/components/ui";
 import { PhotoUploadButton, PhotoUploadTile } from "./photo-upload";
 import { PhotoStrip } from "./photo-strip";
 import { Furniture } from "./furniture";
 import { RoomMenu } from "./room-menu";
 import { RoomAi } from "./room-ai";
 
-export default async function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
-  const { roomId } = await params;
-  const { supabase, home } = await getContext();
+export default function RoomPage() {
+  return (
+    <Suspense>
+      <Room />
+    </Suspense>
+  );
+}
 
-  const { data: room } = await supabase
-    .from("rooms")
-    .select("id,name,cover_photo_id,home_id")
-    .eq("id", roomId)
-    .eq("home_id", home.id)
-    .maybeSingle();
-  if (!room) notFound();
+function Room() {
+  const roomId = useSearchParams().get("id") ?? "";
+  const { home } = useApp();
+  const { data } = useData(
+    async ({ supabase, home }) => {
+      const { data: room } = await supabase
+        .from("rooms")
+        .select("id,name,cover_photo_id,home_id")
+        .eq("id", roomId)
+        .eq("home_id", home.id)
+        .maybeSingle();
+      if (!room) return { room: null } as const;
+      const [{ data: photos }, { data: furniture }, { data: shopping }] = await Promise.all([
+        supabase.from("room_photos").select("*").eq("room_id", roomId).order("created_at"),
+        supabase
+          .from("furniture_items")
+          .select("id,room_id,name,note,keep,position")
+          .eq("room_id", roomId)
+          .order("position"),
+        supabase
+          .from("shopping_items")
+          .select("id,name,price_cents,status")
+          .eq("room_id", roomId)
+          .eq("status", "open")
+          .order("created_at"),
+      ]);
+      const list = (photos ?? []) as RoomPhoto[];
+      const urls = await signPaths(supabase, list.map((p) => p.storage_path));
+      return { room, list, urls, furniture: (furniture ?? []) as FurnitureItem[], shopping };
+    },
+    [roomId],
+  );
 
-  const [{ data: photos }, { data: furniture }, { data: shopping }] = await Promise.all([
-    supabase.from("room_photos").select("*").eq("room_id", roomId).order("created_at"),
-    supabase.from("furniture_items").select("id,room_id,name,note,keep,position").eq("room_id", roomId).order("position"),
-    supabase
-      .from("shopping_items")
-      .select("id,name,price_cents,status")
-      .eq("room_id", roomId)
-      .eq("status", "open")
-      .order("created_at"),
-  ]);
-
-  const list = (photos ?? []) as RoomPhoto[];
-  const urls = await signPaths(supabase, list.map((p) => p.storage_path));
+  if (!data) return null;
+  if (!data.room)
+    return (
+      <EmptyState
+        title="Dieses Zimmer gibt es nicht mehr."
+        action={
+          <Link href="/wohnung" className={buttonClass("primary")}>
+            Zur Wohnung
+          </Link>
+        }
+      />
+    );
+  const { room, list, urls, furniture: items, shopping } = data;
   const cover = list.find((p) => p.id === room.cover_photo_id) ?? list[0];
   const coverUrl = cover ? urls.get(cover.storage_path) : null;
-  const items = (furniture ?? []) as FurnitureItem[];
 
   return (
     <div>
@@ -139,7 +171,7 @@ export default async function RoomPage({ params }: { params: Promise<{ roomId: s
             <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
               {(shopping as Pick<ShoppingItem, "id" | "name" | "price_cents">[]).map((s) => (
                 <li key={s.id}>
-                  <Link href={`/einkauf/${s.id}`} className="flex items-center gap-3 py-3.5 text-[14px]">
+                  <Link href={`/artikel?id=${s.id}`} className="flex items-center gap-3 py-3.5 text-[14px]">
                     <span className="h-4 w-4 rounded-full border border-ink/30" />
                     <span className="flex-1">{s.name}</span>
                     {s.price_cents != null && <span className="text-muted">{formatPrice(s.price_cents)}</span>}

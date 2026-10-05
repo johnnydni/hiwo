@@ -19,7 +19,7 @@ const actions = [
 export function AiFab({ roomName }: { roomName?: string }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
-  const hidden = path.startsWith("/einkauf") || path.startsWith("/profil");
+  const hidden = ["/einkauf", "/artikel", "/profil"].some((p) => path.startsWith(p));
   if (hidden) return null;
 
   return (

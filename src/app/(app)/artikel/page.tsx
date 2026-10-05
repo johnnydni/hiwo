@@ -1,28 +1,65 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { Suspense } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { getContext, signPaths } from "@/lib/data";
+import { signPaths } from "@/lib/data";
+import { useApp, useData } from "@/components/app-context";
 import { displayName, formatPrice, relativeDay } from "@/lib/format";
 import type { Profile, ShoppingItem } from "@/lib/types";
-import { Avatar, PageHeader } from "@/components/ui";
+import { Avatar, EmptyState, PageHeader, buttonClass } from "@/components/ui";
 import { ItemActions, ItemImage } from "./item-actions";
 
-export default async function ItemPage({ params }: { params: Promise<{ itemId: string }> }) {
-  const { itemId } = await params;
-  const { supabase, home } = await getContext();
-  const { data } = await supabase.from("shopping_items").select("*").eq("id", itemId).eq("home_id", home.id).maybeSingle();
-  if (!data) notFound();
-  const item = data as ShoppingItem;
+export default function ItemPage() {
+  return (
+    <Suspense>
+      <Item />
+    </Suspense>
+  );
+}
 
-  const [{ data: rooms }, { data: people }, urls] = await Promise.all([
-    supabase.from("rooms").select("id,name").eq("home_id", home.id).order("position"),
-    supabase
-      .from("profiles")
-      .select("id,email,display_name,avatar_path")
-      .in("id", [item.created_by, item.done_by].filter(Boolean) as string[]),
-    signPaths(supabase, [item.image_path]),
-  ]);
-  const byId = new Map((people as Profile[] | null)?.map((p) => [p.id, p]));
-  const roomName = rooms?.find((r) => r.id === item.room_id)?.name ?? "Gesamte Wohnung";
+function Item() {
+  const itemId = useSearchParams().get("id") ?? "";
+  const { home } = useApp();
+  const { data: loaded } = useData(
+    async ({ supabase, home }) => {
+      const { data } = await supabase
+        .from("shopping_items")
+        .select("*")
+        .eq("id", itemId)
+        .eq("home_id", home.id)
+        .maybeSingle();
+      if (!data) return { item: null } as const;
+      const item = data as ShoppingItem;
+      const [{ data: rooms }, { data: people }, urls] = await Promise.all([
+        supabase.from("rooms").select("id,name").eq("home_id", home.id).order("position"),
+        supabase
+          .from("profiles")
+          .select("id,email,display_name,avatar_path")
+          .in("id", [item.created_by, item.done_by].filter(Boolean) as string[]),
+        signPaths(supabase, [item.image_path]),
+      ]);
+      return { item, rooms: rooms ?? [], people: (people ?? []) as Profile[], urls };
+    },
+    [itemId],
+  );
+
+  if (!loaded) return null;
+  if (!loaded.item)
+    return (
+      <EmptyState
+        title="Diesen Artikel gibt es nicht mehr."
+        action={
+          <Link href="/einkauf" className={buttonClass("primary")}>
+            Zur Einkaufsliste
+          </Link>
+        }
+      />
+    );
+  const { item, rooms, people, urls } = loaded;
+  const byId = new Map(people.map((p) => [p.id, p]));
+  const roomName = rooms.find((r) => r.id === item.room_id)?.name ?? "Gesamte Wohnung";
   const creator = item.created_by ? byId.get(item.created_by) : null;
   const doneBy = item.done_by ? byId.get(item.done_by) : null;
 
@@ -41,7 +78,7 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
           {item.price_cents != null && <p className="mt-3 text-[20px] font-semibold">{formatPrice(item.price_cents)}</p>}
         </div>
 
-        <ItemActions item={item} rooms={rooms ?? []} />
+        <ItemActions item={item} rooms={rooms} />
 
         {item.url && (
           <a

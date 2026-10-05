@@ -2,12 +2,14 @@
 
 import { useRef, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { addFurniture, deleteFurniture } from "@/app/actions";
+import { addFurniture, deleteFurniture } from "@/lib/api";
+import { useApp } from "@/components/app-context";
 import type { FurnitureItem } from "@/lib/types";
 
 export function Furniture({ roomId, items }: { roomId: string; items: FurnitureItem[] }) {
   const form = useRef<HTMLFormElement>(null);
   const [pending, start] = useTransition();
+  const app = useApp();
   return (
     <div className="rounded-card bg-card px-4 shadow-soft">
       <ul className="divide-y divide-line">
@@ -17,7 +19,12 @@ export function Furniture({ roomId, items }: { roomId: string; items: FurnitureI
             <span className="flex-1">{it.name}</span>
             <button
               aria-label={`${it.name} entfernen`}
-              onClick={() => start(() => deleteFurniture(it.id, roomId))}
+              onClick={() =>
+                start(async () => {
+                  await deleteFurniture(it.id);
+                  app.bump();
+                })
+              }
               disabled={pending}
               className="rounded-full p-1 text-faint opacity-60 hover:text-ink md:opacity-0 md:group-hover:opacity-100"
             >
@@ -28,9 +35,13 @@ export function Furniture({ roomId, items }: { roomId: string; items: FurnitureI
       </ul>
       <form
         ref={form}
-        action={async (fd) => {
-          await addFurniture(roomId, fd);
-          form.current?.reset();
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const input = form.current!.elements.namedItem("name") as HTMLInputElement;
+          const name = input.value;
+          input.value = "";
+          await addFurniture(app, roomId, name);
+          app.bump();
         }}
         className={`flex items-center gap-3 py-2 ${items.length ? "border-t border-line" : ""}`}
       >

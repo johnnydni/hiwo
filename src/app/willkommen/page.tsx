@@ -1,22 +1,37 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { completeOnboarding } from "@/app/actions";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
+import { completeOnboarding } from "@/lib/api";
+import { rememberHome, Splash } from "@/components/app-context";
 import { Button, Input, Label } from "@/components/ui";
 
-export default async function Willkommen() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+export default function Willkommen() {
+  const router = useRouter();
+  const [state, setState] = useState<{ userId: string; needsName: boolean; needsHome: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const [{ data: profile }, { count }] = await Promise.all([
-    supabase.from("profiles").select("display_name").eq("id", user.id).single(),
-    supabase.from("home_members").select("home_id", { count: "exact", head: true }).eq("user_id", user.id),
-  ]);
-  const needsName = !profile?.display_name;
-  const needsHome = !count;
-  if (!needsName && !needsHome) redirect("/");
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return router.replace("/login");
+      const [{ data: profile }, { count }] = await Promise.all([
+        supabase.from("profiles").select("display_name").eq("id", session.user.id).single(),
+        supabase.from("home_members").select("home_id", { count: "exact", head: true }).eq("user_id", session.user.id),
+      ]);
+      const needsName = !profile?.display_name;
+      const needsHome = !count;
+      if (!needsName && !needsHome) return router.replace("/");
+      setState({ userId: session.user.id, needsName, needsHome });
+    })();
+  }, [router]);
+
+  if (!state) return <Splash />;
+  const { needsName, needsHome } = state;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col px-6 pt-20 pb-12">
@@ -37,7 +52,16 @@ export default async function Willkommen() {
           ? "Lass uns deine Wohnung anlegen. Zimmer und Fotos fügst du danach hinzu."
           : "Wie sollen dich die anderen sehen?"}
       </p>
-      <form action={completeOnboarding} className="mt-10 flex flex-1 flex-col gap-5">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          const homeId = await completeOnboarding(state.userId, new FormData(e.currentTarget));
+          if (homeId) rememberHome(homeId);
+          router.replace("/");
+        }}
+        className="mt-10 flex flex-1 flex-col gap-5"
+      >
         {needsName && (
           <label>
             <Label>Dein Name</Label>
@@ -57,7 +81,9 @@ export default async function Willkommen() {
           </>
         )}
         <div className="mt-auto pt-6">
-          <Button className="w-full">{needsHome ? "Wohnung anlegen" : "Weiter"}</Button>
+          <Button className="w-full" disabled={busy}>
+            {needsHome ? "Wohnung anlegen" : "Weiter"}
+          </Button>
         </div>
       </form>
     </main>

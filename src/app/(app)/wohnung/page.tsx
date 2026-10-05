@@ -1,19 +1,33 @@
-import { getContext, loadRoomCards } from "@/lib/data";
+"use client";
+
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { loadRoomCards } from "@/lib/data";
+import { useApp, useData } from "@/components/app-context";
 import { RoomCard } from "@/components/room-card";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { AddRoomButton, AddRoomTile } from "./add-room";
 
-export default async function WohnungPage({ searchParams }: { searchParams: Promise<{ neu?: string }> }) {
-  const ctx = await getContext();
-  const rooms = await loadRoomCards(ctx);
-  const { neu } = await searchParams;
+export default function WohnungPage() {
+  return (
+    <Suspense>
+      <Wohnung />
+    </Suspense>
+  );
+}
+
+function Wohnung() {
+  const { home } = useApp();
+  const neu = useSearchParams().get("neu");
+  const { data: rooms } = useData(loadRoomCards);
+  if (!rooms) return null;
   const existing = rooms.map((r) => r.name);
 
   return (
     <>
       <PageHeader
-        title={ctx.home.name}
-        subtitle={ctx.home.city ?? undefined}
+        title={home.name}
+        subtitle={home.city ?? undefined}
         action={<AddRoomButton existing={existing} initiallyOpen={neu === "1"} />}
       />
       <div className="px-4 md:px-0">
