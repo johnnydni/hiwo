@@ -15,6 +15,8 @@ export type Home = {
   name: string;
   city: string | null;
   cover_photo_id: string | null;
+  /** own title picture of the home (fotos/wohnung/<id>.jpg); wins over cover_photo_id */
+  cover?: { path: string; sha: string } | null;
   created_at: string;
 };
 

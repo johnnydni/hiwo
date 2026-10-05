@@ -9,6 +9,7 @@ import { useApp } from "@/components/app-context";
 import { SortableRooms } from "./sortable-rooms";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { AddRoomButton, AddRoomTile } from "./add-room";
+import { TitlePhoto } from "./title-photo";
 
 export default function WohnungPage() {
   return (
@@ -27,6 +28,7 @@ function Wohnung() {
 
   return (
     <>
+      <TitlePhoto />
       <PageHeader
         title={home.name}
         subtitle={home.city ?? undefined}

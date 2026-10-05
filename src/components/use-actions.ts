@@ -207,10 +207,27 @@ export function useActions() {
         touchRoom(d, v.room_id);
       }),
 
-    setHomeCover: (photoId: string) =>
-      mutate("hiwo: Wohnungsbild gesetzt", (d) => {
+    setHomeCover: async (photoId: string) => {
+      const own = doc.home.cover;
+      await mutate("hiwo: Wohnungsbild gesetzt", (d) => {
         d.home.cover_photo_id = photoId;
-      }),
+        d.home.cover = null;
+      });
+      if (own) await removeFile(conn, own.path, own.sha, "hiwo: altes Titelbild").catch(() => {});
+    },
+
+    /** Uploads the home's own title picture; replaces a chosen room photo as Wohnungsbild. */
+    setHomeTitlePhoto: async (file: File) => {
+      const own = doc.home.cover;
+      const { blob } = await prepareImage(file, 1800);
+      const path = `fotos/wohnung/${newId()}.jpg`;
+      const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Titelbild hochgeladen"));
+      await mutate(own ? "hiwo: Titelbild ersetzt" : "hiwo: Titelbild hinzugefügt", (d) => {
+        d.home.cover = { path, sha };
+        d.home.cover_photo_id = null;
+      });
+      if (own) await removeFile(conn, own.path, own.sha, "hiwo: altes Titelbild").catch(() => {});
+    },
 
     deletePhoto: async (photoId: string) => {
       const photo = doc.photos.find((p) => p.id === photoId);

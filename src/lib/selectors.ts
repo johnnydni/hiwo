@@ -39,6 +39,7 @@ export function roomCards(doc: HiwoDoc): RoomCard[] {
 }
 
 export function homeCoverPath(doc: HiwoDoc): string | null {
+  if (doc.home.cover) return doc.home.cover.path;
   const explicit = doc.photos.find((p) => p.id === doc.home.cover_photo_id);
   if (explicit) return explicit.path;
   return roomCards(doc).find((r) => r.coverPath)?.coverPath ?? null;
