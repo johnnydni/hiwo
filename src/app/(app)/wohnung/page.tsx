@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { roomCards } from "@/lib/selectors";
 import { useApp } from "@/components/app-context";
-import { RoomCard } from "@/components/room-card";
+import { SortableRooms } from "./sortable-rooms";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { AddRoomButton, AddRoomTile } from "./add-room";
 
@@ -32,12 +32,9 @@ function Wohnung() {
       />
       <div className="px-4 md:px-0">
         {rooms.length ? (
-          <div className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-3 md:gap-x-5 md:gap-y-8">
-            {rooms.map((r) => (
-              <RoomCard key={r.id} room={r} />
-            ))}
+          <SortableRooms rooms={rooms}>
             <AddRoomTile existing={existing} />
-          </div>
+          </SortableRooms>
         ) : (
           <EmptyState title="Noch keine Zimmer." action={<AddRoomButton existing={existing} big />}>
             Fang mit dem Raum an, in dem du am meisten Zeit verbringst.
