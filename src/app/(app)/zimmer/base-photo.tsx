@@ -98,12 +98,14 @@ export function Action({
   onClick,
   disabled,
   danger,
+  loading,
 }: {
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  loading?: boolean;
 }) {
   return (
     <button
@@ -114,7 +116,7 @@ export function Action({
         danger && "text-terracotta",
       )}
     >
-      {icon}
+      {loading ? <Loader2 size={18} className="animate-spin" /> : icon}
       {children}
     </button>
   );

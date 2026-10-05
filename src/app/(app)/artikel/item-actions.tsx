@@ -23,7 +23,7 @@ export function ItemActions({ item }: { item: ShoppingItem }) {
       <Button
         className="w-full"
         variant={done ? "secondary" : "primary"}
-        disabled={pending}
+        loading={pending}
         onClick={() =>
           start(async () => {
             await actions.setShoppingDone(item.id, !done).catch((e) => setError(e.message));
@@ -73,7 +73,7 @@ export function ItemActions({ item }: { item: ShoppingItem }) {
             <Label>Notiz</Label>
             <Textarea name="note" defaultValue={item.note ?? ""} />
           </label>
-          <Button className="w-full" disabled={pending}>Speichern</Button>
+          <Button className="w-full" loading={pending}>Speichern</Button>
           <button
             type="button"
             onClick={() => (confirm
@@ -122,7 +122,7 @@ export function ItemImage({ itemId, path, remote }: { itemId: string; path: stri
         className={cx(
           "relative block w-full overflow-hidden rounded-image",
           // without a photo a slim drop zone is enough; most items never get one
-          path ? "aspect-[4/3] bg-line" : fromLink ? "aspect-[4/3] bg-white" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
+          path ? (url ? "aspect-[4/3] bg-white" : "aspect-[4/3] bg-line") : fromLink ? "aspect-[4/3] bg-white" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
         )}
         aria-label={url ? "Produktfoto ändern" : "Produktfoto hinzufügen"}
       >
@@ -133,7 +133,7 @@ export function ItemImage({ itemId, path, remote }: { itemId: string; path: stri
             alt=""
             referrerPolicy="no-referrer"
             onError={() => fromLink && setRemoteBroken(true)}
-            className={fromLink ? "h-full w-full object-contain p-4" : "h-full w-full object-cover"}
+            className="animate-fade-in h-full w-full object-contain p-[5%]"
           />
         ) : path ? (
           <span className="animate-shimmer block h-full w-full bg-line" />

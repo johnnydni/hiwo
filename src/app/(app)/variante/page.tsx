@@ -45,11 +45,17 @@ function VariantView() {
   return (
     <div>
       <div className="relative md:pt-10">
-        <Photo
-          path={showBase && base ? base.path : variant.path}
-          alt={variant.name ?? ""}
-          className="aspect-[4/3] md:aspect-[21/9] md:rounded-image"
-        />
+        {/* both photos stay loaded; the switch crossfades instead of reloading */}
+        <div className="relative aspect-[4/3] overflow-hidden md:aspect-[21/9] md:rounded-image">
+          <Photo path={variant.path} alt={variant.name ?? ""} className="absolute inset-0" />
+          {base && (
+            <Photo
+              path={base.path}
+              alt="Vorher"
+              className={cx("absolute inset-0 transition-opacity duration-300", showBase ? "opacity-100" : "opacity-0")}
+            />
+          )}
+        </div>
         <Link
           href={`/zimmer?id=${room.id}`}
           aria-label="Zurück"
@@ -63,7 +69,7 @@ function VariantView() {
               <button
                 key={String(b)}
                 onClick={() => setShowBase(b)}
-                className={cx("rounded-full px-4 py-1.5 transition", showBase === b ? "bg-ink text-white" : "text-ink/70")}
+                className={cx("rounded-full px-4 py-2 transition-colors duration-200", showBase === b ? "bg-ink text-white" : "text-ink/70")}
               >
                 {b ? "Vorher" : "Variante"}
               </button>
@@ -129,7 +135,7 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
             <Label>Notiz</Label>
             <Textarea name="note" defaultValue={variant.note ?? ""} placeholder="Was gefällt euch daran?" />
           </label>
-          <Button className="w-full" disabled={pending}>
+          <Button className="w-full" loading={pending}>
             Speichern
           </Button>
         </form>

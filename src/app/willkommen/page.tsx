@@ -143,7 +143,7 @@ function Willkommen() {
         )}
         {error && <p className="text-[13px] text-terracotta">{error}</p>}
         <div className="mt-auto pt-6">
-          <Button className="w-full" disabled={busy}>
+          <Button className="w-full" loading={busy}>
             {needsHome ? "Wohnung anlegen" : "Beitreten"}
           </Button>
         </div>

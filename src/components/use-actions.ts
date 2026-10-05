@@ -31,14 +31,14 @@ export function targetValue(item: { room_id: string | null; variant_id: string |
 }
 
 export function useActions() {
-  const { conn, me, doc, mutate } = useApp();
+  const { conn, me, doc, mutate, track } = useApp();
   const by = me.id;
 
   async function upload(roomId: string, file: File) {
     const { blob, width, height } = await prepareImage(file, 1800);
     const id = newId();
     const path = `fotos/${roomId}/${id}.jpg`;
-    const { sha } = await uploadPhoto(conn, path, blob, "hiwo: Foto hochgeladen");
+    const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Foto hochgeladen"));
     return {
       id,
       room_id: roomId,
@@ -260,7 +260,7 @@ export function useActions() {
       const old = doc.shopping.find((s) => s.id === id);
       const { blob } = await prepareImage(file, 1200);
       const path = `fotos/einkauf/${id}-${Date.now()}.jpg`;
-      const { sha } = await uploadPhoto(conn, path, blob, "hiwo: Produktfoto hochgeladen");
+      const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Produktfoto hochgeladen"));
       await mutate("hiwo: Produktfoto gesetzt", (d) => {
         const s = d.shopping.find((x) => x.id === id);
         if (s) {

@@ -24,7 +24,8 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
           <Input value={value} onChange={(e) => setValue(e.target.value)} aria-label="Name" />
           <Button
             className="w-full"
-            disabled={pending || !value.trim() || value === name}
+            loading={pending}
+            disabled={!value.trim() || value === name}
             onClick={() =>
               start(async () => {
                 await renameRoom(roomId, value);

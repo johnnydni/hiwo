@@ -8,7 +8,7 @@ import { cx } from "./ui";
 /** Own product photo if there is one, else the picture found behind the shop link. */
 export function ItemThumb({ item, className }: { item: ShoppingItem; className?: string }) {
   const [broken, setBroken] = useState<string | null>(null);
-  if (item.image_path) return <Photo path={item.image_path} className={className} />;
+  if (item.image_path) return <Photo path={item.image_path} fit="contain" className={className} />;
   if (!item.image_url || broken === item.image_url) return null;
   return (
     <div className={cx("overflow-hidden bg-white", className)}>
@@ -19,7 +19,7 @@ export function ItemThumb({ item, className }: { item: ShoppingItem; className?:
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => setBroken(item.image_url ?? null)}
-        className="animate-fade-in h-full w-full object-contain"
+        className="animate-fade-in h-full w-full object-contain p-[5%]"
       />
     </div>
   );

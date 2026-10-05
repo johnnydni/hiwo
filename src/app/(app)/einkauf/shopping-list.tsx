@@ -203,7 +203,7 @@ function AddItemSheet({
             + Preis, Link oder Notiz
           </button>
         )}
-        <Button className="w-full" disabled={pending}>
+        <Button className="w-full" loading={pending}>
           Auf die Liste
         </Button>
       </form>

@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Check, Loader2 } from "lucide-react";
+import { cx } from "./ui";
 import { readConnection, type Saved } from "@/lib/connection";
 import { loadDoc, photoUrl, updateDoc, type Loaded } from "@/lib/store";
 import type { HiwoDoc, Member } from "@/lib/types";
@@ -14,6 +16,8 @@ type AppCtx = {
   mutate: (message: string, change: (doc: HiwoDoc) => void) => Promise<void>;
   /** Re-read hiwo.json (others may have changed it). */
   reload: () => Promise<void>;
+  /** Shows the save indicator while `work` runs (photo uploads etc.). */
+  track: <T>(work: Promise<T>) => Promise<T>;
 };
 
 const AppContext = createContext<AppCtx | null>(null);
@@ -73,14 +77,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [reload]);
 
+  const track = useCallback(<T,>(work: Promise<T>) => saving.track(work), []);
+
   const mutate = useCallback(
-    async (message: string, change: (doc: HiwoDoc) => void) => {
-      const c = readConnection()!;
-      const next = await updateDoc(c, loadedRef.current, message, change);
-      loadedRef.current = next;
-      setLoaded(next);
-    },
-    [],
+    (message: string, change: (doc: HiwoDoc) => void) =>
+      track(
+        (async () => {
+          const c = readConnection()!;
+          const next = await updateDoc(c, loadedRef.current, message, change);
+          loadedRef.current = next;
+          setLoaded(next);
+        })(),
+      ),
+    [track],
   );
 
   if (error) return <ConnectionError message={error} />;
@@ -89,7 +98,75 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (!me) return <Splash />;
 
   return (
-    <AppContext.Provider value={{ conn, doc: loaded.doc, me, mutate, reload }}>{children}</AppContext.Provider>
+    <AppContext.Provider value={{ conn, doc: loaded.doc, me, mutate, reload, track }}>
+      {children}
+      <SaveIndicator />
+    </AppContext.Provider>
+  );
+}
+
+/** Every change is a commit to GitHub (about a second): say so, and say when it failed. */
+// A store outside React: saves start inside transitions, whose state updates
+// React would hold back until the save is done.
+type SaveState = { inflight: number; last: { ok: boolean; at: number } | null };
+const saving = (() => {
+  let state: SaveState = { inflight: 0, last: null };
+  const listeners = new Set<() => void>();
+  const set = (next: SaveState) => {
+    state = next;
+    listeners.forEach((l) => l());
+  };
+  return {
+    get: () => state,
+    subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    async track<T>(work: Promise<T>) {
+      set({ ...state, inflight: state.inflight + 1 });
+      try {
+        const r = await work;
+        set({ inflight: state.inflight - 1, last: { ok: true, at: Date.now() } });
+        return r;
+      } catch (e) {
+        set({ inflight: state.inflight - 1, last: { ok: false, at: Date.now() } });
+        throw e;
+      }
+    },
+  };
+})();
+const serverSaveState: SaveState = { inflight: 0, last: null };
+
+function SaveIndicator() {
+  const { inflight, last } = useSyncExternalStore(saving.subscribe, saving.get, () => serverSaveState);
+  const isSaving = inflight > 0;
+  const [shownResult, setShownResult] = useState<{ ok: boolean; at: number } | null>(null);
+  useEffect(() => {
+    if (isSaving || !last) return;
+    setShownResult(last);
+    const t = setTimeout(() => setShownResult(null), last.ok ? 1400 : 5000);
+    return () => clearTimeout(t);
+  }, [isSaving, last]);
+  const state = isSaving ? "saving" : shownResult ? (shownResult.ok ? "saved" : "error") : null;
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[60] flex justify-center lg:inset-x-auto lg:right-6"
+    >
+      {state && (
+        <span
+          key={state}
+          className={cx(
+            "animate-dialog-in inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] shadow-soft backdrop-blur",
+            state === "error" ? "bg-terracotta text-white" : "bg-ink/85 text-white",
+          )}
+        >
+          {state === "saving" && <Loader2 size={14} className="animate-spin" />}
+          {state === "saved" && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
+          {state === "saving" ? "Speichert …" : state === "saved" ? "Gespeichert" : "Nicht gespeichert. Bitte noch einmal versuchen."}
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -23,8 +23,25 @@ export function buttonClass(variant: Variant = "primary", extra?: string) {
   );
 }
 
-export function Button({ variant = "primary", className, ...props }: ComponentProps<"button"> & { variant?: Variant }) {
-  return <button {...props} className={buttonClass(variant, className)} />;
+/** `loading`: disabled, with a spinner over the (kept) label so the button doesn't change size. */
+export function Button({
+  variant = "primary",
+  className,
+  loading,
+  disabled,
+  children,
+  ...props
+}: ComponentProps<"button"> & { variant?: Variant; loading?: boolean }) {
+  return (
+    <button {...props} disabled={disabled || loading} aria-busy={loading || undefined} className={buttonClass(variant, cx("relative", className))}>
+      <span className={cx("inline-flex items-center gap-2 transition-opacity", loading && "opacity-0")}>{children}</span>
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Loader2 size={18} className="animate-spin" />
+        </span>
+      )}
+    </button>
+  );
 }
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
