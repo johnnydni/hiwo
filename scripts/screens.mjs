@@ -63,6 +63,26 @@ for (let i = 0; i < palettes.length; i++) {
   }, [palettes[i], i]);
   jpg.push(Buffer.from(data, "base64"));
 }
+// a product shot on white (armchair with a white cushion, which must stay)
+const product = Buffer.from(
+  await gen.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 900; c.height = 900;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, 900, 900);
+    g.fillStyle = "rgba(0,0,0,0.08)"; g.beginPath(); g.ellipse(450, 760, 330, 30, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#4d6b5a";
+    g.beginPath(); g.roundRect(170, 220, 560, 330, 60); g.fill();
+    g.beginPath(); g.roundRect(120, 420, 150, 260, 40); g.fill();
+    g.beginPath(); g.roundRect(630, 420, 150, 260, 40); g.fill();
+    g.beginPath(); g.roundRect(240, 500, 420, 180, 30); g.fill();
+    g.fillStyle = "#f4f1ea"; g.beginPath(); g.roundRect(330, 330, 240, 150, 40); g.fill();
+    g.fillStyle = "#6b4f3a";
+    for (const x of [170, 700]) g.fillRect(x, 680, 30, 80);
+    return c.toDataURL("image/jpeg", 0.9).split(",")[1];
+  }),
+  "base64",
+);
 await gen.close();
 
 // --- seed ---------------------------------------------------------------
@@ -104,6 +124,8 @@ const shopping = [
   item("s12", "Ein sehr langer Artikelname, der auf dem Handy umbrechen oder abgeschnitten werden muss", "r4", null, 19900),
 ];
 gh.files.set("fotos/einkauf/s2.jpg", jpg[2]);
+gh.files.set("fotos/einkauf/s13.jpg", product);
+shopping.push(item("s13", "Sessel Salbei", "r0", "v0", 59900, "open", { image_path: "fotos/einkauf/s13.jpg", image_sha: "x" }));
 gh.files.set("fotos/skizzen/b0/k1.jpg", jpg[1]);
 const sketches = [{ id: "k1", source_id: "b0", path: "fotos/skizzen/b0/k1.jpg", sha: "x", width: 1200, height: 900, created_by: "m2", created_at: t(4) }];
 const doc = {
@@ -166,6 +188,39 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.click("header button[aria-label='Zimmer hinzufügen']");
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${OUT}/${vp}-sheet-header.png` });
+  }
+  // image editor: put the armchair (background removed) into the variant photo
+  if (!only || only.includes("editor-produkt")) {
+    await page.goto(BASE + "/variante/?id=v0");
+    await page.waitForLoadState("networkidle");
+    await page.click("button[aria-label='Bild bearbeiten']");
+    await page.waitForSelector("canvas[aria-label='Zeichenfläche']");
+    await page.waitForTimeout(400);
+    await page.click("button[aria-label='Produkt']");
+    await page.waitForSelector("[aria-label='Produkt einfügen']");
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-picker.png` });
+    await page.click("button[aria-label='Sessel Salbei einfügen']");
+    await page.waitForSelector("input[aria-label='Hintergrund entfernen']");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt.png` });
+    // drag it to the left and mirror it
+    const b = await page.locator("canvas[aria-label='Zeichenfläche']").boundingBox();
+    const at = (x, y) => [b.x + b.width * x, b.y + b.height * y];
+    const drag = async (from, to) => {
+      await page.mouse.move(...from);
+      await page.mouse.down();
+      await page.mouse.move(...to, { steps: 10 });
+      await page.mouse.up();
+    };
+    await drag(at(0.5, 0.58), at(0.3, 0.62));
+    await page.click("button:has-text('Spiegeln')");
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt-bewegt.png` });
+    await page.click("button:has-text('Als Skizze sichern')");
+    await page.waitForSelector("[role=dialog] >> text=Version", { timeout: 15000 });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-gesichert.png` });
   }
   await ctx.close();
 }

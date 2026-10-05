@@ -22,6 +22,11 @@ export function PhotoTools({ sourceId, path, className }: { sourceId: string; pa
   const [showSketches, setShowSketches] = useState(false);
   const [openSketch, setOpenSketch] = useState<string | null>(null);
   const count = (doc.sketches ?? []).filter((k) => k.source_id === sourceId).length;
+  // products of this variant/room come first when inserting one into the photo
+  const photo = doc.photos.find((p) => p.id === sourceId);
+  const context = photo
+    ? { roomId: photo.room_id, variantId: photo.kind === "variant" ? photo.id : null }
+    : { roomId: doc.shopping.find((i) => i.id === sourceId)?.room_id ?? null, variantId: null };
 
   return (
     <>
@@ -66,6 +71,7 @@ export function PhotoTools({ sourceId, path, className }: { sourceId: string; pa
       {editing && (
         <MarkupEditor
           path={editing}
+          context={context}
           onCancel={() => setEditing(null)}
           onSave={async (blob, w, h) => {
             const id = await saveSketch(sourceId, blob, w, h);

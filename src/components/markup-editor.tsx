@@ -2,22 +2,30 @@
 
 // Drawing on a photo, modelled on "Markieren" in Apple Fotos: pen, marker,
 // pencil, eraser, arrow and text, a few colours and three widths, undo/redo.
+// "Produkt" places a product picture into the photo: its plain background is
+// removed (lib/cutout), then it can be moved, scaled, turned and mirrored.
 // Everything is kept as vector operations in image pixels and only flattened
 // into a JPG on save, so undo is exact and the original photo stays as it is.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Eraser, Highlighter, Loader2, MoveUpRight, Pen, Pencil, Redo2, Type, Undo2 } from "lucide-react";
+import { Armchair, Eraser, FlipHorizontal2, Highlighter, Loader2, MoveUpRight, Pen, Pencil, Plus, Redo2, Trash2, Type, Undo2 } from "lucide-react";
 import { usePhotoUrl } from "./app-context";
+import { ProductPicker, type PickContext } from "./product-picker";
 import { cx } from "./ui";
+import { detectBackground, removeBackground, type Cutout } from "@/lib/cutout";
 
 type Pt = [number, number];
 type StrokeTool = "pen" | "marker" | "pencil" | "eraser";
-type Tool = StrokeTool | "arrow" | "text";
+type Tool = StrokeTool | "arrow" | "text" | "product";
+/** `src` names the product picture, `tol` how much background is removed (0–100), `w` the picture's width in image pixels. */
+type ProductOp = { kind: "product"; id: string; src: string; tol: number; holes: boolean; at: Pt; w: number; rot: number; flip: boolean };
 type Op =
   | { kind: "stroke"; tool: StrokeTool; color: string; size: number; pts: Pt[] }
   | { kind: "arrow"; color: string; size: number; a: Pt; b: Pt }
-  | { kind: "text"; id: string; color: string; size: number; at: Pt; text: string };
+  | { kind: "text"; id: string; color: string; size: number; at: Pt; text: string }
+  | ProductOp;
+type CutFor = (op: ProductOp) => Cutout | null;
 
 const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
   { id: "pen", label: "Stift", icon: <Pen size={20} strokeWidth={1.6} /> },
@@ -26,6 +34,7 @@ const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
   { id: "eraser", label: "Radierer", icon: <Eraser size={20} strokeWidth={1.6} /> },
   { id: "arrow", label: "Pfeil", icon: <MoveUpRight size={20} strokeWidth={1.6} /> },
   { id: "text", label: "Text", icon: <Type size={20} strokeWidth={1.6} /> },
+  { id: "product", label: "Produkt", icon: <Armchair size={20} strokeWidth={1.6} /> },
 ];
 // six plus a custom one: still fits a 360px phone in one row with the widths
 const COLORS = ["#1f1d1b", "#ffffff", "#e5484d", "#f5a524", "#30a46c", "#0090ff"];
@@ -34,11 +43,14 @@ const MAX_SIDE = 2048;
 
 export function MarkupEditor({
   path,
+  context,
   onCancel,
   onSave,
 }: {
   /** photo in the data repo to draw on */
   path: string;
+  /** room/variant of the photo, so their products come first when inserting one */
+  context?: PickContext;
   onCancel: () => void;
   onSave: (blob: Blob, width: number, height: number) => Promise<void>;
 }) {
@@ -60,8 +72,24 @@ export function MarkupEditor({
   const cache = useRef<HTMLCanvasElement | null>(null);
   const draft = useRef<Op | null>(null);
   const drag = useRef<{ id: string; from: Pt; orig: Pt; moved: boolean; before: { list: Op[][]; at: number } } | null>(null);
-  const pointers = useRef(new Set<number>());
+  const pointers = useRef(new Map<number, Pt>());
   const [display, setDisplay] = useState({ w: 0, h: 0 });
+
+  // products: their pictures, cutouts per removal setting, the selected one
+  const sources = useRef(new Map<string, HTMLCanvasElement>());
+  const cuts = useRef(new Map<string, Cutout>());
+  const [sel, setSel] = useState<string | null>(null);
+  const [picker, setPicker] = useState(false);
+  const gesture = useRef<{
+    id: string;
+    mode: "move" | "scale" | "pinch";
+    moved: boolean;
+    orig: ProductOp;
+    from: Pt;
+    dist: number;
+    angle: number;
+  } | null>(null);
+  const sliding = useRef(false);
 
   // image size in canvas pixels (photos are stored at ≤1800px already)
   const scale = img ? Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
@@ -91,14 +119,34 @@ export function MarkupEditor({
     return () => ro.disconnect();
   }, [W, H]);
 
+  const cutFor = useCallback<CutFor>((op) => {
+    const key = `${op.src}|${op.tol}|${op.holes ? 1 : 0}`;
+    let c = cuts.current.get(key);
+    if (!c) {
+      const s = sources.current.get(op.src);
+      if (!s) return null;
+      c = removeBackground(s, op.tol, op.holes);
+      cuts.current.set(key, c);
+      // a few MB each: keep only the latest ones (dragging the slider makes many)
+      if (cuts.current.size > 16) cuts.current.delete(cuts.current.keys().next().value!);
+    }
+    return c;
+  }, []);
+
+  const selOp = tool === "product" ? ops.find((o): o is ProductOp => o.kind === "product" && o.id === sel) : undefined;
+  // image pixels per screen pixel, for handles that stay finger-sized
+  const px = display.w ? W / display.w : 1;
+
   const renderView = useCallback(() => {
     const v = view.current;
     if (!v || !cache.current) return;
     const g = v.getContext("2d")!;
     g.clearRect(0, 0, v.width, v.height);
     g.drawImage(cache.current, 0, 0);
-    if (draft.current) drawOp(g, draft.current);
-  }, []);
+    if (draft.current) drawOp(g, draft.current, cutFor);
+    const c = selOp && cutFor(selOp);
+    if (selOp && c) drawSelection(g, selOp, c, px);
+  }, [cutFor, selOp, px]);
 
   // committed operations are drawn once into an offscreen cache
   useEffect(() => {
@@ -107,21 +155,57 @@ export function MarkupEditor({
     c.width = W;
     c.height = H;
     const g = c.getContext("2d")!;
-    for (const op of ops) drawOp(g, op);
+    for (const op of ops) drawOp(g, op, cutFor);
     renderView();
-  }, [ops, W, H, renderView]);
+  }, [ops, W, H, renderView, cutFor]);
 
   const dirty = hist.at > 0;
   const commit = (next: Op[]) => setHist((h) => ({ list: [...h.list.slice(0, h.at + 1), next], at: h.at + 1 }));
   const undo = () => setHist((h) => ({ ...h, at: Math.max(0, h.at - 1) }));
   const redo = () => setHist((h) => ({ ...h, at: Math.min(h.list.length - 1, h.at + 1) }));
   const cancel = () => (dirty && !confirmCancel ? setConfirmCancel(true) : onCancel());
+  // a continuous change (drag, pinch, slider) is one undo step: copy the current
+  // state once, then keep editing that copy
+  const begin = () => setHist((h) => ({ list: [...h.list.slice(0, h.at + 1), h.list[h.at]], at: h.at + 1 }));
+  const live = (id: string, change: (o: ProductOp) => ProductOp) =>
+    setHist((h) => {
+      const list = [...h.list];
+      list[h.at] = list[h.at].map((o) => (o.kind === "product" && o.id === id ? change(o) : o));
+      return { ...h, list };
+    });
+  const editSel = (change: (o: ProductOp) => ProductOp) => selOp && commit(ops.map((o) => (o === selOp ? change(selOp) : o)));
+  const removeSel = () => {
+    if (!selOp) return;
+    commit(ops.filter((o) => o !== selOp));
+    setSel(null);
+  };
 
+  function insertProduct(canvas: HTMLCanvasElement) {
+    const src = crypto.randomUUID();
+    sources.current.set(src, canvas);
+    const bg = detectBackground(canvas);
+    const op: ProductOp = { kind: "product", id: crypto.randomUUID(), src, tol: bg.plain ? 25 : 0, holes: false, at: [0, 0], w: 1, rot: 0, flip: false };
+    const c = cutFor(op)!;
+    // the product itself takes ~40% of the photo's width (at most half its height), a bit below the middle
+    const aspect = canvas.height / canvas.width;
+    op.w = Math.min((W * 0.4) / c.box.w, (H * 0.5) / (c.box.h * aspect));
+    const f = frame(op, c);
+    op.at = [W / 2 - (f.x + f.bw / 2), H * 0.58 - (f.y + f.bh / 2)];
+    commit([...ops, op]);
+    setSel(op.id);
+    setPicker(false);
+  }
+
+  const removeRef = useRef(removeSel);
+  useEffect(() => {
+    removeRef.current = removeSel;
+  });
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === "INPUT") return;
+      if (e.key === "Backspace" || e.key === "Delete") removeRef.current();
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -147,7 +231,8 @@ export function MarkupEditor({
       finishText();
       return;
     }
-    pointers.current.add(e.pointerId);
+    if (tool === "product") return productDown(e);
+    pointers.current.set(e.pointerId, toImage(e));
     if (pointers.current.size > 1) {
       // a second finger: no zoom here, just don't leave a stray line
       draft.current = null;
@@ -174,6 +259,7 @@ export function MarkupEditor({
   }
 
   function move(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (tool === "product") return productMove(e);
     if (pointers.current.size > 1) return;
     const d = drag.current;
     if (d) {
@@ -200,6 +286,10 @@ export function MarkupEditor({
 
   function up(e: React.PointerEvent<HTMLCanvasElement>) {
     pointers.current.delete(e.pointerId);
+    if (tool === "product") {
+      gesture.current = null;
+      return;
+    }
     const d = drag.current;
     if (d) {
       drag.current = null;
@@ -216,6 +306,65 @@ export function MarkupEditor({
     if (!op) return;
     if (op.kind === "arrow" && Math.hypot(op.b[0] - op.a[0], op.b[1] - op.a[1]) < unit * 6) return renderView();
     commit([...ops, op]);
+  }
+
+  // one finger drags a product, the round handle or two fingers scale and turn it
+  function productDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    const p = toImage(e);
+    pointers.current.set(e.pointerId, p);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setConfirmCancel(false);
+    if (pointers.current.size === 2) {
+      if (!selOp) return;
+      const [a, b] = [...pointers.current.values()];
+      gesture.current = { id: selOp.id, mode: "pinch", moved: gesture.current?.moved ?? false, orig: selOp, from: mid(a, b), dist: dist(a, b), angle: angle(a, b) };
+      return;
+    }
+    if (pointers.current.size > 2) return;
+    const c = selOp && cutFor(selOp);
+    if (selOp && c && dist(handleAt(selOp, c), p) < 28 * px) {
+      gesture.current = { id: selOp.id, mode: "scale", moved: false, orig: selOp, from: p, dist: dist(selOp.at, p), angle: angle(selOp.at, p) };
+      return;
+    }
+    const hit = [...ops].reverse().find((o): o is ProductOp => {
+      const k = o.kind === "product" && cutFor(o);
+      return !!k && hitProduct(o as ProductOp, k, p, 8 * px);
+    });
+    setSel(hit?.id ?? null);
+    gesture.current = hit ? { id: hit.id, mode: "move", moved: false, orig: hit, from: p, dist: 0, angle: 0 } : null;
+  }
+
+  function productMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!pointers.current.has(e.pointerId)) return;
+    const p = toImage(e);
+    pointers.current.set(e.pointerId, p);
+    const gs = gesture.current;
+    if (!gs) return;
+    const o = gs.orig;
+    let next: ProductOp;
+    if (gs.mode === "move") {
+      const dx = p[0] - gs.from[0];
+      const dy = p[1] - gs.from[1];
+      if (!gs.moved && Math.hypot(dx, dy) < unit * 2) return;
+      next = { ...o, at: [o.at[0] + dx, o.at[1] + dy] };
+    } else if (gs.mode === "scale") {
+      next = { ...o, w: Math.max(unit * 10, (o.w * dist(o.at, p)) / gs.dist), rot: o.rot + angle(o.at, p) - gs.angle };
+    } else {
+      if (pointers.current.size < 2) return;
+      const [a, b] = [...pointers.current.values()];
+      const m = mid(a, b);
+      next = {
+        ...o,
+        w: Math.max(unit * 10, (o.w * dist(a, b)) / gs.dist),
+        rot: o.rot + angle(a, b) - gs.angle,
+        at: [o.at[0] + m[0] - gs.from[0], o.at[1] + m[1] - gs.from[1]],
+      };
+    }
+    if (!gs.moved) {
+      gs.moved = true;
+      begin();
+    }
+    live(gs.id, () => next);
   }
 
   function finishText() {
@@ -258,7 +407,7 @@ export function MarkupEditor({
       aria-label="Bild bearbeiten"
     >
       <div className="flex h-14 shrink-0 items-center justify-between gap-2 px-2">
-        <button onClick={cancel} disabled={saving} className={cx("h-11 rounded-full px-3 text-[15px]", confirmCancel && "text-[#ff8b7a]")}>
+        <button onClick={cancel} disabled={saving} className={cx("h-11 shrink-0 rounded-full px-2 text-[15px] whitespace-nowrap", confirmCancel && "text-[#ff8b7a]")}>
           {confirmCancel ? "Änderungen verwerfen?" : "Abbrechen"}
         </button>
         <div className="flex">
@@ -272,7 +421,7 @@ export function MarkupEditor({
         <button
           onClick={save}
           disabled={!dirty || saving || !!text}
-          className="relative h-9 rounded-full bg-white px-4 text-[14px] font-medium text-ink disabled:opacity-40"
+          className="relative h-9 shrink-0 rounded-full bg-white px-4 text-[14px] font-medium whitespace-nowrap text-ink disabled:opacity-40"
         >
           <span className={cx(saving && "opacity-0")}>Als Skizze sichern</span>
           {saving && <Loader2 size={16} className="absolute inset-0 m-auto animate-spin" />}
@@ -298,7 +447,7 @@ export function MarkupEditor({
               onPointerUp={up}
               onPointerCancel={up}
               aria-label="Zeichenfläche"
-              className={cx("absolute inset-0 h-full w-full touch-none", tool === "text" ? "cursor-text" : "cursor-crosshair")}
+              className={cx("absolute inset-0 h-full w-full touch-none", tool === "text" ? "cursor-text" : tool === "product" ? "cursor-move" : "cursor-crosshair")}
             />
           </div>
         )}
@@ -330,11 +479,12 @@ export function MarkupEditor({
               onClick={() => {
                 if (text) finishText();
                 setTool(t.id);
+                if (t.id === "product" && !ops.some((o) => o.kind === "product")) setPicker(true);
               }}
               aria-label={t.label}
               aria-pressed={tool === t.id}
               className={cx(
-                "flex h-14 w-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] transition-colors",
+                "flex h-14 w-12 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] transition-colors sm:w-14",
                 tool === t.id ? "bg-white/15 text-white" : "text-white/60 hover:text-white",
               )}
             >
@@ -343,6 +493,64 @@ export function MarkupEditor({
             </button>
           ))}
         </div>
+        {tool === "product" ? (
+          <div className="mx-auto mt-1 max-w-md">
+            {selOp ? (
+              <>
+                <div className="flex h-11 items-center gap-3 px-1">
+                  <span className="shrink-0 text-[13px] text-white/70">Hintergrund</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={selOp.tol}
+                    aria-label="Hintergrund entfernen"
+                    onChange={(e) => {
+                      if (!sliding.current) {
+                        sliding.current = true;
+                        begin();
+                      }
+                      const tol = Number(e.target.value);
+                      live(selOp.id, (o) => ({ ...o, tol }));
+                    }}
+                    onPointerUp={() => (sliding.current = false)}
+                    onKeyUp={() => (sliding.current = false)}
+                    onBlur={() => (sliding.current = false)}
+                    className="min-w-0 flex-1 accent-white"
+                  />
+                  <button
+                    onClick={() => editSel((o) => ({ ...o, holes: !o.holes }))}
+                    aria-pressed={selOp.holes}
+                    title="Auch Hintergrund zwischen Stuhlbeinen, Henkeln usw. entfernen"
+                    className={cx("h-8 shrink-0 rounded-full px-3 text-[12px]", selOp.holes ? "bg-white text-ink" : "bg-white/10 text-white/80")}
+                  >
+                    Lücken
+                  </button>
+                </div>
+                <div className="flex justify-between">
+                  <BarButton onClick={() => editSel((o) => ({ ...o, flip: !o.flip }))} icon={<FlipHorizontal2 size={17} strokeWidth={1.6} />}>
+                    Spiegeln
+                  </BarButton>
+                  <BarButton onClick={removeSel} icon={<Trash2 size={17} strokeWidth={1.6} />}>
+                    Entfernen
+                  </BarButton>
+                  <BarButton onClick={() => setPicker(true)} icon={<Plus size={17} strokeWidth={1.6} />}>
+                    Noch eins
+                  </BarButton>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-11 items-center justify-between gap-2 px-1">
+                <span className="text-[13px] text-white/60">
+                  {ops.some((o) => o.kind === "product") ? "Tippe ein Produkt an, um es zu ändern." : "Setz ein Produkt ins Foto."}
+                </span>
+                <BarButton onClick={() => setPicker(true)} icon={<Plus size={17} strokeWidth={1.6} />}>
+                  Produkt einfügen
+                </BarButton>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="mx-auto mt-1 flex max-w-md items-center justify-between">
           <div className={cx("flex items-center transition-opacity", tool === "eraser" && "pointer-events-none opacity-30")}>
             {COLORS.map((c) => (
@@ -369,9 +577,20 @@ export function MarkupEditor({
             ))}
           </div>
         </div>
+        )}
       </div>
+      {picker && <ProductPicker context={context} onPick={insertProduct} onClose={() => setPicker(false)} />}
     </div>,
     document.body,
+  );
+}
+
+function BarButton({ onClick, icon, children }: { onClick: () => void; icon: ReactNode; children: ReactNode }) {
+  return (
+    <button onClick={onClick} className="flex h-11 items-center gap-1.5 rounded-full px-3 text-[13px] text-white/85 hover:bg-white/10">
+      {icon}
+      {children}
+    </button>
   );
 }
 
@@ -387,7 +606,20 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
 
 const FONT = "600 {px}px -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
-function drawOp(g: CanvasRenderingContext2D, op: Op) {
+function drawOp(g: CanvasRenderingContext2D, op: Op, cutFor: CutFor) {
+  if (op.kind === "product") {
+    const c = cutFor(op);
+    if (!c) return;
+    const h = (op.w * c.canvas.height) / c.canvas.width;
+    g.save();
+    g.translate(op.at[0], op.at[1]);
+    g.rotate(op.rot);
+    if (op.flip) g.scale(-1, 1);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(c.canvas, -op.w / 2, -h / 2, op.w, h);
+    g.restore();
+    return;
+  }
   g.save();
   g.lineCap = "round";
   g.lineJoin = "round";
@@ -473,3 +705,77 @@ function isLight(hex: string) {
   const n = parseInt(hex.slice(1), 16);
   return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114 > 160;
 }
+
+// -- products -------------------------------------------------------------------
+
+/** Visible part of a product in its own coordinates (centre of the picture = 0,0, before turning). */
+function frame(op: ProductOp, c: Cutout) {
+  const h = (op.w * c.canvas.height) / c.canvas.width;
+  const bw = c.box.w * op.w;
+  const bh = c.box.h * h;
+  let x = (c.box.x - 0.5) * op.w;
+  if (op.flip) x = -x - bw;
+  return { x, y: (c.box.y - 0.5) * h, bw, bh };
+}
+
+function toWorld(op: ProductOp, [lx, ly]: Pt): Pt {
+  const c = Math.cos(op.rot);
+  const s = Math.sin(op.rot);
+  return [op.at[0] + lx * c - ly * s, op.at[1] + lx * s + ly * c];
+}
+
+function hitProduct(op: ProductOp, c: Cutout, [px, py]: Pt, pad: number) {
+  const dx = px - op.at[0];
+  const dy = py - op.at[1];
+  const cos = Math.cos(-op.rot);
+  const sin = Math.sin(-op.rot);
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+  const f = frame(op, c);
+  return lx >= f.x - pad && lx <= f.x + f.bw + pad && ly >= f.y - pad && ly <= f.y + f.bh + pad;
+}
+
+/** The round handle sits on the bottom-right corner of the visible part. */
+function handleAt(op: ProductOp, c: Cutout): Pt {
+  const f = frame(op, c);
+  return toWorld(op, [f.x + f.bw, f.y + f.bh]);
+}
+
+function drawSelection(g: CanvasRenderingContext2D, op: ProductOp, c: Cutout, px: number) {
+  const f = frame(op, c);
+  g.save();
+  g.translate(op.at[0], op.at[1]);
+  g.rotate(op.rot);
+  g.shadowColor = "rgba(0,0,0,0.5)";
+  g.shadowBlur = 3 * px;
+  g.strokeStyle = "#fff";
+  g.lineWidth = 1.5 * px;
+  g.setLineDash([6 * px, 5 * px]);
+  g.strokeRect(f.x, f.y, f.bw, f.bh);
+  g.setLineDash([]);
+  const hx = f.x + f.bw;
+  const hy = f.y + f.bh;
+  g.fillStyle = "#fff";
+  g.beginPath();
+  g.arc(hx, hy, 12 * px, 0, Math.PI * 2);
+  g.fill();
+  // a turning arrow inside the handle
+  g.shadowBlur = 0;
+  g.strokeStyle = "#1f1d1b";
+  g.lineWidth = 1.6 * px;
+  g.beginPath();
+  g.arc(hx, hy, 5.5 * px, -Math.PI * 0.9, Math.PI * 0.4);
+  g.stroke();
+  const ex = hx + Math.cos(Math.PI * 0.4) * 5.5 * px;
+  const ey = hy + Math.sin(Math.PI * 0.4) * 5.5 * px;
+  g.beginPath();
+  g.moveTo(ex - 3.5 * px, ey - 0.5 * px);
+  g.lineTo(ex, ey);
+  g.lineTo(ex + 0.5 * px, ey - 3.5 * px);
+  g.stroke();
+  g.restore();
+}
+
+const dist = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+const angle = (a: Pt, b: Pt) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
