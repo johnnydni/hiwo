@@ -7,6 +7,7 @@ import { cx } from "./ui";
 import { readConnection, type Saved } from "@/lib/connection";
 import { loadDoc, photoUrl, updateDoc, type Loaded } from "@/lib/store";
 import type { HiwoDoc, Member } from "@/lib/types";
+import { Logo } from "@/components/logo";
 
 type AppCtx = {
   conn: Saved;
@@ -172,7 +173,8 @@ function SaveIndicator() {
 
 export function Splash() {
   return (
-    <div className="flex min-h-dvh items-center justify-center">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
+      <Logo size={56} className="animate-shimmer" />
       <p className="animate-shimmer font-serif text-[40px]">hiwo</p>
     </div>
   );
