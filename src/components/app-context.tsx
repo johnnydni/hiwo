@@ -7,7 +7,7 @@ import { cx } from "./ui";
 import { readConnection, type Saved } from "@/lib/connection";
 import { loadDoc, photoUrl, updateDoc, type Loaded } from "@/lib/store";
 import type { HiwoDoc, Member } from "@/lib/types";
-import { Logo } from "@/components/logo";
+import { LOGO_DRAW_MS, LogoDraw } from "@/components/logo";
 
 type AppCtx = {
   conn: Saved;
@@ -67,6 +67,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The splash animation plays to the end once per browser session, even when the data is faster.
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem("hiwo_intro") === "1";
+      sessionStorage.setItem("hiwo_intro", "1");
+    } catch {}
+    if (seen || matchMedia("(prefers-reduced-motion: reduce)").matches) return setIntroDone(true);
+    const id = setTimeout(() => setIntroDone(true), LOGO_DRAW_MS);
+    return () => clearTimeout(id);
+  }, []);
+
   // Pick up changes from the rest of the family while the app is open.
   useEffect(() => {
     const tick = () => document.visibilityState === "visible" && reload().catch(() => {});
@@ -94,7 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   if (error) return <ConnectionError message={error} />;
-  if (!conn || !loaded) return <Splash />;
+  if (!conn || !loaded || !introDone) return <Splash />;
   const me = loaded.doc.members.find((m) => m.id === conn.memberId);
   if (!me) return <Splash />;
 
@@ -174,8 +187,8 @@ function SaveIndicator() {
 export function Splash() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
-      <Logo size={56} className="animate-shimmer" />
-      <p className="animate-shimmer font-serif text-[40px]">hiwo</p>
+      <LogoDraw size={96} />
+      <p className="logo-wordmark-in font-serif text-[40px] leading-none">hiwo</p>
     </div>
   );
 }
