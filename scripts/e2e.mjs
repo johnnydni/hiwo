@@ -148,9 +148,10 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
     await page.press("input[placeholder^='z.B. Sofa']", "Enter");
     await page.waitForSelector("li:has-text('Sofa Lino') img", { timeout: 15000 });
     await shot("05-variant");
-    await page.click("button:has-text('Vorher')");
+    await page.click("button:has-text('Vergleich')");
+    await page.waitForSelector("[role=slider]");
     await page.waitForTimeout(600);
-    await shot("05b-variant-before");
+    await shot("05b-variant-compare");
     await page.click("button:has-text('Variante')");
 
     // draw on the variant, save it as a sketch; the original photo stays as it is
