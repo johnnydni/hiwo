@@ -249,6 +249,21 @@ await page.waitForTimeout(800);
 await page.goto(`${BASE}/wohnung`);
 await page.waitForTimeout(800);
 await shot("06b-rooms");
+// an own title picture for the home, uploaded right on the rooms overview
+const coverBefore = doc().home.cover_photo_id;
+{
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("button[aria-label='Titelbild ändern']")]);
+  await chooser.setFiles(`${OUT}/room0.jpg`);
+  for (let t = 0; t < 100 && !doc().home.cover; t++) await page.waitForTimeout(200);
+  await page.waitForTimeout(800);
+}
+const titleCheck = {
+  roomCoverWasSet: !!coverBefore,
+  ownCover: !!doc().home.cover,
+  fileThere: gh.files.has(doc().home.cover?.path),
+  roomCoverCleared: doc().home.cover_photo_id === null,
+};
+await shot("06c-rooms-title");
 
 // shopping
 await page.goto(`${BASE}/einkauf`);
@@ -392,6 +407,7 @@ const summary = {
   reorder,
   sketchCheck,
   replaceCheck,
+  titleCheck,
   members: final.members.map((m) => m.name),
   rooms: final.rooms.map((r) => r.name),
   variants: final.photos.filter((p) => p.kind === "variant").map((p) => p.name),
