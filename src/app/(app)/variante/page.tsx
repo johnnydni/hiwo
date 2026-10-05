@@ -3,7 +3,7 @@
 import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Home, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Home, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { ItemList } from "@/components/item-list";
@@ -28,6 +28,8 @@ export default function VariantPage() {
 function VariantView() {
   const id = useSearchParams().get("id") ?? "";
   const { doc } = useApp();
+  const { replaceVariantPhoto } = useActions();
+  const picker = usePickPhoto((file) => replaceVariantPhoto(id, file));
   const [mode, setMode] = useState<"variant" | "compare">("variant");
   const variant = doc.photos.find((p) => p.id === id && p.kind === "variant");
   const room = variant && doc.rooms.find((r) => r.id === variant.room_id);
@@ -49,9 +51,18 @@ function VariantView() {
     <div>
       <div className="relative md:pt-10">
         <div className="relative aspect-[4/3] overflow-hidden md:aspect-[21/9] md:rounded-image">
-          <Photo path={variant.path} alt={variant.name ?? ""} className="absolute inset-0" />
+          {/* tap the picture to replace it, like the room's base photo */}
+          <button onClick={picker.pick} disabled={picker.busy} aria-label="Bild ersetzen" className="absolute inset-0 block">
+            <Photo path={variant.path} alt={variant.name ?? ""} className="absolute inset-0" />
+          </button>
+          {picker.busy && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/50">
+              <Loader2 className="animate-spin" />
+            </span>
+          )}
           {base && mode === "compare" && <CompareSlider before={base.path} after={variant.path} className="animate-fade-in" />}
         </div>
+        {picker.input}
         <Link
           href={`/zimmer?id=${room.id}`}
           aria-label="Zurück"
@@ -81,6 +92,7 @@ function VariantView() {
       </div>
 
       <div className="px-4 md:px-0">
+        {picker.error && <p className="pt-2 text-[13px] text-terracotta">{picker.error}</p>}
         <div className="animate-fade-up flex items-start justify-between pt-5">
           <div className="min-w-0">
             <p className="text-[13px] text-muted">{room.name}</p>
@@ -101,7 +113,7 @@ function VariantView() {
 
 function EditVariant({ variant }: { variant: RoomPhoto }) {
   const { doc } = useApp();
-  const { updateVariant, deletePhoto, setHomeCover, replaceVariantPhoto } = useActions();
+  const { updateVariant, deletePhoto, setHomeCover } = useActions();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -111,17 +123,12 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
     setConfirm(false);
   };
   const isHomeCover = doc.home.cover_photo_id === variant.id;
-  const picker = usePickPhoto(async (file) => {
-    await replaceVariantPhoto(variant.id, file);
-    close();
-  });
 
   return (
     <>
       <button onClick={() => setOpen(true)} aria-label="Variante bearbeiten" className="-mr-3 mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/5">
         <Pencil size={19} strokeWidth={1.6} />
       </button>
-      {picker.input}
       <Sheet open={open} onClose={close} title="Variante bearbeiten">
         <form
           onSubmit={(e) => {
@@ -147,9 +154,6 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
           </Button>
         </form>
         <div className="mt-4 divide-y divide-line rounded-card bg-card px-4 shadow-soft">
-          <Action icon={<RefreshCw size={18} strokeWidth={1.6} />} onClick={picker.pick} disabled={pending || picker.busy} loading={picker.busy}>
-            {picker.busy ? "Neues Bild wird gespeichert …" : "Bild ersetzen"}
-          </Action>
           <Action
             icon={<Home size={18} strokeWidth={1.6} />}
             disabled={pending || isHomeCover}
@@ -173,7 +177,6 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
             {confirm ? "Wirklich löschen? Die Liste bleibt beim Zimmer." : "Variante löschen"}
           </Action>
         </div>
-        {picker.error && <p className="mt-3 text-[13px] text-terracotta">{picker.error}</p>}
       </Sheet>
     </>
   );
