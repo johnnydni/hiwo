@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { deleteRoom, renameRoom } from "@/lib/api";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
 import { Sheet } from "@/components/sheet";
 import { Button, Input } from "@/components/ui";
 
@@ -13,7 +12,7 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
   const [value, setValue] = useState(name);
   const [confirm, setConfirm] = useState(false);
   const [pending, start] = useTransition();
-  const app = useApp();
+  const { deleteRoom, renameRoom } = useActions();
   const router = useRouter();
   return (
     <>
@@ -30,7 +29,6 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
               start(async () => {
                 await renameRoom(roomId, value);
                 setOpen(false);
-                app.bump();
               })
             }
           >
@@ -39,9 +37,8 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
           <button
             onClick={() => (confirm
                 ? start(async () => {
-                    await deleteRoom(app, roomId);
-                    app.bump();
                     router.push("/wohnung");
+                    await deleteRoom(roomId);
                   })
                 : setConfirm(true))}
             disabled={pending}

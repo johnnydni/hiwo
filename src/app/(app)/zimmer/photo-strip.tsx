@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { Star, Home, Trash2, Sparkles } from "lucide-react";
-import { deletePhoto, setHomeCover, setRoomCover } from "@/lib/api";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
+import { usePhotoUrl } from "@/components/app-context";
+import { Photo } from "@/components/photo";
 import { Sheet } from "@/components/sheet";
 import { cx } from "@/components/ui";
 import { AiSheet } from "@/components/ai-assistant";
 
-type P = { id: string; url: string };
+type P = { id: string; path: string };
 
 export function PhotoStrip({
   roomId,
@@ -27,7 +28,7 @@ export function PhotoStrip({
   const [ai, setAi] = useState(false);
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const app = useApp();
+  const { deletePhoto, setHomeCover, setRoomCover } = useActions();
 
   const close = () => {
     setOpen(null);
@@ -37,8 +38,6 @@ export function PhotoStrip({
     start(async () => {
       await fn();
       close();
-      // home cover lives in the app context
-      await app.refresh();
     });
 
   return (
@@ -49,8 +48,7 @@ export function PhotoStrip({
           onClick={() => setOpen(p)}
           className="relative h-24 w-32 shrink-0 overflow-hidden rounded-[16px] bg-line"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={p.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <Photo path={p.path} className="h-full w-full" />
           {p.id === coverId && (
             <span className="absolute bottom-1.5 left-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium">
               Titelbild
@@ -62,8 +60,7 @@ export function PhotoStrip({
       <Sheet open={!!open} onClose={close}>
         {open && (
           <div className="space-y-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={open.url} alt="" className="max-h-[55dvh] w-full rounded-image object-contain bg-line" />
+            <BigPhoto path={open.path} />
             <div className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
               <Action
                 icon={<Sparkles size={18} strokeWidth={1.6} />}
@@ -85,7 +82,7 @@ export function PhotoStrip({
               <Action
                 icon={<Home size={18} strokeWidth={1.6} />}
                 disabled={pending || open.id === homeCoverId}
-                onClick={() => run(() => setHomeCover(app, open.id))}
+                onClick={() => run(() => setHomeCover(open.id))}
               >
                 {open.id === homeCoverId ? "Ist das Wohnungsbild" : "Als Bild der Wohnung"}
               </Action>
@@ -139,5 +136,15 @@ function Action({
       {icon}
       {children}
     </button>
+  );
+}
+
+function BigPhoto({ path }: { path: string }) {
+  const url = usePhotoUrl(path);
+  return url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="max-h-[55dvh] w-full rounded-image bg-line object-contain" />
+  ) : (
+    <div className="animate-shimmer aspect-[4/3] w-full rounded-image bg-line" />
   );
 }

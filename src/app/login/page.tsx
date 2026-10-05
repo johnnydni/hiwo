@@ -2,12 +2,9 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { isConfigured } from "@/lib/supabase";
-import { NotConfigured } from "@/components/not-configured";
-import { LoginForm } from "./login-form";
+import { ConnectForm } from "./connect-form";
 
 export default function LoginPage() {
-  if (!isConfigured) return <NotConfigured />;
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-[#efe9df] via-paper to-paper">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col px-6">
@@ -30,5 +27,5 @@ export default function LoginPage() {
 
 function WithNext() {
   const next = useSearchParams().get("next");
-  return <LoginForm next={next?.startsWith("/") ? next : "/"} />;
+  return <ConnectForm next={next?.startsWith("/") ? next : "/"} />;
 }

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateHome, updateProfile } from "@/lib/api";
-import { useApp } from "@/components/app-context";
+import { useActions } from "@/components/use-actions";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label } from "@/components/ui";
 
 export function ProfileEdit({ name, homeName, city }: { name: string; homeName: string; city: string }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  const app = useApp();
+  const [error, setError] = useState<string | null>(null);
+  const { renameMe, updateHome } = useActions();
   return (
     <>
       <button onClick={() => setOpen(true)} className="text-[14px] text-muted hover:text-ink">
@@ -21,9 +21,14 @@ export function ProfileEdit({ name, homeName, city }: { name: string; homeName: 
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
             start(async () => {
-              await Promise.all([updateProfile(app, fd), updateHome(app, fd)]);
-              await app.refresh();
-              setOpen(false);
+              try {
+                // one after another: both write hiwo.json
+                await renameMe(String(fd.get("display_name") ?? ""));
+                await updateHome(fd);
+                setOpen(false);
+              } catch (err) {
+                setError((err as Error).message);
+              }
             });
           }}
           className="space-y-4"
@@ -40,6 +45,7 @@ export function ProfileEdit({ name, homeName, city }: { name: string; homeName: 
             <Label>Stadt</Label>
             <Input name="city" defaultValue={city} />
           </label>
+          {error && <p className="text-[13px] text-terracotta">{error}</p>}
           <Button className="w-full" disabled={pending}>Speichern</Button>
         </form>
       </Sheet>

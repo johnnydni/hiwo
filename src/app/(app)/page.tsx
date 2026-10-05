@@ -2,35 +2,19 @@
 
 import Link from "next/link";
 import { ChevronRight, ShoppingBag, Camera, Clock } from "lucide-react";
-import { loadRoomCards, signPaths } from "@/lib/data";
-import { useApp, useData } from "@/components/app-context";
+import { useApp } from "@/components/app-context";
+import { homeCoverPath, roomCards } from "@/lib/selectors";
 import { firstName, greeting, plural } from "@/lib/format";
 import { RoomCard } from "@/components/room-card";
-import { PhotoPlaceholder, buttonClass } from "@/components/ui";
+import { Photo } from "@/components/photo";
+import { buttonClass } from "@/components/ui";
 
 export default function HomePage() {
-  const { home, profile } = useApp();
-  const { data } = useData(async (ctx) => {
-    const { supabase } = ctx;
-    const [rooms, { count: openCount }, { data: homeCover }] = await Promise.all([
-      loadRoomCards(ctx),
-      supabase
-        .from("shopping_items")
-        .select("id", { count: "exact", head: true })
-        .eq("home_id", ctx.home.id)
-        .eq("status", "open"),
-      ctx.home.cover_photo_id
-        ? supabase.from("room_photos").select("storage_path").eq("id", ctx.home.cover_photo_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
-    let coverUrl: string | null = null;
-    if (homeCover?.storage_path)
-      coverUrl = (await signPaths(supabase, [homeCover.storage_path])).get(homeCover.storage_path) ?? null;
-    coverUrl ??= rooms.find((r) => r.coverUrl)?.coverUrl ?? null;
-    return { rooms, openCount: openCount ?? 0, coverUrl };
-  });
-  if (!data) return null;
-  const { rooms, openCount, coverUrl } = data;
+  const { doc, me } = useApp();
+  const { home } = doc;
+  const rooms = roomCards(doc);
+  const openCount = doc.shopping.filter((s) => s.status === "open").length;
+  const coverPath = homeCoverPath(doc);
 
   const recent = [...rooms].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
   const photoCount = rooms.reduce((n, r) => n + r.photoCount, 0);
@@ -40,19 +24,19 @@ export default function HomePage() {
       <header className="animate-fade-up pt-6 md:pt-10">
         <p className="font-serif text-[30px] leading-none md:hidden">hiwo</p>
         <h1 className="mt-6 font-serif text-[30px] leading-tight md:mt-0 md:text-[40px]">
-          {greeting()}, {firstName(profile)}.
+          {greeting()}, {firstName(me.name)}.
         </h1>
         <p className="mt-1 text-[14px] text-muted">Schön, dass du da bist.</p>
       </header>
 
       <Link href="/wohnung" className="group mt-6 block animate-fade-up">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-image bg-line md:aspect-[21/9]">
-          {coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverUrl} alt={home.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.01]" />
-          ) : (
-            <PhotoPlaceholder className="h-full w-full" />
-          )}
+        <div className="relative">
+          <Photo
+            path={coverPath}
+            alt={home.name}
+            className="aspect-[4/3] rounded-image md:aspect-[21/9]"
+            imgClassName="transition duration-500 group-hover:scale-[1.01]"
+          />
           <div className="absolute inset-x-3 top-3 flex items-center justify-between rounded-[14px] bg-white/90 px-4 py-3 backdrop-blur">
             <div>
               <p className="text-[14px] font-medium">{home.name}</p>

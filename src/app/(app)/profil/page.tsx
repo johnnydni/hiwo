@@ -2,25 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Home, Users, ShoppingBag, Sparkles, Bell, Palette, CircleHelp, LogOut } from "lucide-react";
-import { useApp, useData } from "@/components/app-context";
-import { signOut } from "@/lib/api";
-import { displayName, plural } from "@/lib/format";
+import { ChevronRight, Home, Users, ShoppingBag, Sparkles, Bell, Palette, CircleHelp, LogOut, Database } from "lucide-react";
+import { useApp } from "@/components/app-context";
+import { clearConnection } from "@/lib/connection";
+import { plural } from "@/lib/format";
 import { Avatar } from "@/components/ui";
 import { ProfileEdit } from "./profile-edit";
 
 export default function ProfilPage() {
-  const { profile, home } = useApp();
+  const { doc, me, conn } = useApp();
+  const home = doc.home;
   const router = useRouter();
-  const { data } = useData(async ({ supabase, home }) => {
-    const [{ count: rooms }, { count: members }] = await Promise.all([
-      supabase.from("rooms").select("id", { count: "exact", head: true }).eq("home_id", home.id),
-      supabase.from("home_members").select("user_id", { count: "exact", head: true }).eq("home_id", home.id),
-    ]);
-    return { rooms, members };
-  });
-  const { rooms, members } = data ?? { rooms: 0, members: 1 };
-  const name = displayName(profile);
+  const rooms = doc.rooms.length;
+  const members = doc.members.length;
+  const name = me.name;
 
   return (
     <div className="px-4 pt-8 md:px-0 md:pt-12">
@@ -28,15 +23,16 @@ export default function ProfilPage() {
         <Avatar name={name} size={60} />
         <div className="flex-1">
           <h1 className="font-serif text-[30px] leading-tight">{name}</h1>
-          <p className="text-[13px] text-muted">{profile.email}</p>
+          <p className="text-[13px] text-muted">{me.role === "owner" ? "Eigentümer" : "Mitglied"} · {home.name}</p>
         </div>
-        <ProfileEdit name={profile.display_name ?? ""} homeName={home.name} city={home.city ?? ""} />
+        <ProfileEdit name={me.name} homeName={home.name} city={home.city ?? ""} />
       </div>
 
       <ul className="mt-8 divide-y divide-line rounded-card bg-card px-4 shadow-soft">
-        <Row href="/wohnung" icon={Home} label="Meine Wohnung" sub={[home.city, plural(rooms ?? 0, "Zimmer", "Zimmer")].filter(Boolean).join(" · ")} />
-        <Row href="/profil/mitbewohner" icon={Users} label="Mitbewohner" sub={plural(members ?? 1, "Person", "Personen")} />
+        <Row href="/wohnung" icon={Home} label="Meine Wohnung" sub={[home.city, plural(rooms, "Zimmer", "Zimmer")].filter(Boolean).join(" · ")} />
+        <Row href="/profil/mitbewohner" icon={Users} label="Mitbewohner" sub={plural(members, "Person", "Personen")} />
         <Row href="/einkauf" icon={ShoppingBag} label="Einkaufslisten" />
+        <Row href={`https://github.com/${conn.repo}`} icon={Database} label="Gespeichert in" sub={conn.repo} />
       </ul>
 
       <ul className="mt-4 divide-y divide-line rounded-card bg-card px-4 shadow-soft">
@@ -49,12 +45,12 @@ export default function ProfilPage() {
       <div className="mt-4">
         <button
           onClick={async () => {
-            await signOut();
-            router.replace("/login");
+            clearConnection();
+            router.replace("/login/");
           }}
           className="flex w-full items-center gap-3 rounded-card bg-card px-4 py-4 text-left text-[15px] shadow-soft">
           <LogOut size={19} strokeWidth={1.6} className="text-muted" />
-          Abmelden
+          Auf diesem Gerät abmelden
         </button>
       </div>
       <p className="mt-10 text-center font-serif text-[18px] text-faint">hiwo · hier wohne ich.</p>

@@ -2,8 +2,8 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { loadRoomCards } from "@/lib/data";
-import { useApp, useData } from "@/components/app-context";
+import { roomCards } from "@/lib/selectors";
+import { useApp } from "@/components/app-context";
 import { RoomCard } from "@/components/room-card";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { AddRoomButton, AddRoomTile } from "./add-room";
@@ -17,10 +17,10 @@ export default function WohnungPage() {
 }
 
 function Wohnung() {
-  const { home } = useApp();
+  const { doc } = useApp();
+  const { home } = doc;
   const neu = useSearchParams().get("neu");
-  const { data: rooms } = useData(loadRoomCards);
-  if (!rooms) return null;
+  const rooms = roomCards(doc);
   const existing = rooms.map((r) => r.name);
 
   return (

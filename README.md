@@ -2,70 +2,67 @@
 
 Mobile-first Web-App für das eigene Zuhause: Wohnung und Zimmer verwalten, Fotos sammeln, Einrichtung festhalten und gemeinsame Einkaufslisten mit Familie oder Mitbewohnern pflegen. KI-Varianten folgen in Phase 2.
 
-**Stack:** Next.js 15 als statischer Export · TypeScript · Tailwind CSS 4 · Supabase (Auth, Postgres mit RLS, Storage, Realtime) · Lucide Icons
+**Stack:** Next.js 15 als statischer Export · TypeScript · Tailwind CSS 4 · Lucide Icons
 
-hiwo hat keinen eigenen Server: Die Seite ist reines HTML/JS (läuft auf GitHub Pages), alle Daten gehen direkt vom Browser zu Supabase. Sicherheit kommt aus den RLS-Regeln in der Datenbank, nicht aus dem Frontend.
+hiwo braucht keinen Server und keine Datenbank: Die App ist reines HTML/JS (läuft auf GitHub Pages) und speichert alles in einem **privaten GitHub-Repo** (z.B. `hiwo-daten`). Der Browser spricht direkt mit der GitHub-API.
 
 ## Stand: Phase 1
 
 | Bereich | Status |
 | --- | --- |
-| Anmeldung per E-Mail-Code (kein Passwort), Magic Link als Fallback | ✓ |
-| Onboarding: Name, Wohnung, Stadt | ✓ |
+| Verbinden mit Daten-Repo + Schlüssel (GitHub-Token), Warnung bei öffentlichem Repo | ✓ |
+| Onboarding: Name, Wohnung, Stadt; Beitreten per Link („Wer bist du?“) | ✓ |
 | Home-Dashboard (Begrüßung, Wohnungsbild, Heute, Zuletzt bearbeitet) | ✓ |
 | Zimmerübersicht (Foto-Grid), Zimmer anlegen/umbenennen/löschen | ✓ |
 | Zimmerdetail: Fotos hochladen (verkleinert im Browser), Titelbild, Wohnungsbild, löschen | ✓ |
 | Meine Einrichtung (Möbelliste pro Zimmer) | ✓ |
-| Einkauf: Gesamte Wohnung / Nach Zimmer, abhaken, Preis, Link, Notiz, Produktfoto, Live-Updates | ✓ |
-| Mitbewohner: Einladung per Link (teilen/kopieren), E-Mail-Einladung tritt beim Login automatisch bei | ✓ |
+| Einkauf: Gesamte Wohnung / Nach Zimmer, abhaken, Preis, Link, Notiz, Produktfoto, Abgleich alle 30 s | ✓ |
+| Mitbewohner: Einladung per Link (teilen/kopieren) | ✓ |
 | Profil & Einstellungen | ✓ (KI/Benachrichtigungen/Darstellung als „bald“) |
 | KI-Assistent (FAB + im Zimmer) | Oberfläche da, Generierung Phase 2 |
 
 ## Datenmodell
 
 ```
-profiles ─┐
-homes ────┼── home_members (owner | member)
-          ├── home_invites (token, email/phone, 30 Tage gültig)
-          ├── rooms ── room_photos
-          │        ├── furniture_items (keep → KI soll behalten)
-          │        ├── room_versions   (Phase 2: name, description, image, parent_version_id)
-          │        └── ai_generations  (Phase 2: prompt, source_photo_id, parent_version_id, status)
-          └── shopping_items (room_id null = Gesamte Wohnung)
+hiwo-daten/            (privates Repo)
+├── hiwo.json          home · members · rooms · photos · furniture · shopping · versions · generations
+└── fotos/
+    ├── <zimmer-id>/<foto-id>.jpg
+    └── einkauf/<artikel-id>-<zeit>.jpg
 ```
 
-Jede Tabelle trägt `home_id`, RLS prüft überall nur `is_home_member(home_id)`. Fotos liegen im privaten Bucket `photos` unter `<home_id>/…` und werden per Signed URL ausgeliefert. Originale werden nie überschrieben: Varianten sind eigene Zeilen mit eigenem Bild.
+Jede Aktion ist ein Commit (z.B. „hiwo: Stehlampe auf die Liste“), die Git-Historie ist also gleichzeitig das Änderungsprotokoll. Ändern zwei Personen gleichzeitig, lehnt GitHub den zweiten Schreibversuch ab (veralteter `sha`); die App lädt dann neu und wendet die Änderung erneut an. Fotos werden im Browser verkleinert (max. 1800 px) und nie überschrieben.
+
+## Grenzen (ehrlich)
+
+- **Ein gemeinsamer Schlüssel.** Alle in der Familie nutzen denselben Token, er steckt im Einladungslink. Wer aus der Liste entfernt wird, hat weiter Zugriff, bis du auf GitHub einen neuen Token erstellst und alle neu einlädst.
+- **Kein Live-Update.** Änderungen anderer erscheinen beim Öffnen der App und sonst spätestens nach 30 Sekunden.
+- **Größe.** Ein GitHub-Repo sollte unter ~1 GB bleiben. Bei ~400 KB pro Foto reicht das für über 2000 Fotos.
+- **Rate-Limit.** 5000 API-Aufrufe pro Stunde und Token, im Familienalltag kein Thema.
+- Der Token liegt im `localStorage` des Geräts. „Auf diesem Gerät abmelden“ löscht ihn.
+
+## Einrichten
+
+1. Auf GitHub ein **privates** Repo anlegen, z.B. `hiwo-daten` (mit README initialisieren).
+2. **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**:
+   Repository access: *Only select repositories* → `hiwo-daten`; Permissions: *Contents: Read and write*. Ablaufdatum nach Wunsch (max. 1 Jahr).
+3. hiwo öffnen (https://johnnydni.github.io/hiwo), Repo und Token eintragen, Wohnung anlegen.
+4. Profil → Mitbewohner → Person einladen → Link teilen.
 
 ## Lokal starten
 
-Voraussetzung: Node 20+, Docker.
-
 ```bash
 npm install
-npx supabase start          # lokale DB, Auth, Storage, Mailpit
-cp .env.example .env.local  # anon key aus der Ausgabe eintragen
-npm run dev
+npm run dev     # http://localhost:3000, verbindet sich mit dem echten GitHub
 ```
 
-Anmeldecodes landen lokal in Mailpit: http://127.0.0.1:54324
-
-End-to-end-Durchlauf mit Screenshots (zwei Nutzer, Einladung, Einkauf):
+End-to-end-Durchlauf gegen eine nachgebaute GitHub-API (`scripts/mock-github.mjs`), mit Screenshots in `e2e-output/`:
 
 ```bash
-NEXT_PUBLIC_BASE_PATH=/hiwo npm run build
-mkdir -p /tmp/site && cp -r out /tmp/site/hiwo && (cd /tmp/site && python3 -m http.server 3000 &)
-npm run db:reset && CHROMIUM_PATH=<pfad> npm run e2e   # Screenshots in e2e-output/
+NEXT_PUBLIC_BASE_PATH=/hiwo NEXT_PUBLIC_GITHUB_API=http://127.0.0.1:4010 npm run build
+CHROMIUM_PATH=<pfad> npm run e2e
 ```
 
 ## Auf GitHub Pages veröffentlichen
 
-1. **Supabase-Projekt** auf supabase.com anlegen. Im SQL-Editor den Inhalt von `supabase/migrations/20261004000000_init.sql` ausführen.
-2. **Auth → Email Templates → Magic Link**: Inhalt aus `supabase/templates/magic_link.html` übernehmen (enthält `{{ .Token }}`, sonst kommt kein Code an).
-3. **Auth → URL Configuration**: Site URL `https://<user>.github.io/hiwo` eintragen.
-4. Im GitHub-Repo unter **Settings → Secrets and variables → Actions → Variables** anlegen:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-5. **Settings → Pages → Source: GitHub Actions** wählen.
-6. Unter **Actions** den Workflow „Deploy to GitHub Pages“ starten (läuft danach bei jedem Push auf `main`).
-
-Für echten Mailversand an mehr als ein paar Personen pro Stunde eigenes SMTP in Supabase hinterlegen.
+**Settings → Pages → Source: GitHub Actions** wählen. Der Workflow „Deploy to GitHub Pages“ läuft bei jedem Push auf `main`. Es müssen keine Variablen oder Secrets gesetzt werden.

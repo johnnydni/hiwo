@@ -1,17 +1,19 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
-import { HOME_KEY, type Ctx } from "@/lib/data";
-import type { Home, Role } from "@/lib/types";
+import { readConnection, type Saved } from "@/lib/connection";
+import { loadDoc, photoUrl, updateDoc, type Loaded } from "@/lib/store";
+import type { HiwoDoc, Member } from "@/lib/types";
 
-type AppCtx = Ctx & {
-  /** Re-load user/home (after editing profile or home). */
-  refresh: () => Promise<void>;
-  /** Re-run every useData() on screen (after any mutation). */
-  bump: () => void;
-  version: number;
+type AppCtx = {
+  conn: Saved;
+  doc: HiwoDoc;
+  me: Member;
+  /** Apply a change to hiwo.json and commit it (one commit per action). */
+  mutate: (message: string, change: (doc: HiwoDoc) => void) => Promise<void>;
+  /** Re-read hiwo.json (others may have changed it). */
+  reload: () => Promise<void>;
 };
 
 const AppContext = createContext<AppCtx | null>(null);
@@ -22,73 +24,73 @@ export function useApp() {
   return ctx;
 }
 
-/** Load signed-in user + current home, or send them to login / onboarding. */
-export async function loadContext(): Promise<Ctx | "login" | "onboarding"> {
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return "login";
-  const user = session.user;
-
-  const [{ data: profile }, { data: memberships }] = await Promise.all([
-    supabase.from("profiles").select("id,email,display_name,avatar_path").eq("id", user.id).single(),
-    supabase
-      .from("home_members")
-      .select("role, created_at, home:homes(id,name,city,cover_photo_id,created_at)")
-      .eq("user_id", user.id)
-      .order("created_at"),
-  ]);
-
-  // Onboarding asks for a home (first user) and a name (everyone, incl. invited people).
-  if (!memberships?.length || !profile?.display_name) return "onboarding";
-
-  let preferred: string | null = null;
-  try {
-    preferred = localStorage.getItem(HOME_KEY);
-  } catch {}
-  const m = memberships.find((x) => (x.home as unknown as Home)?.id === preferred) ?? memberships[0];
-
-  return {
-    supabase,
-    userId: user.id,
-    profile,
-    home: m.home as unknown as Home,
-    role: m.role as Role,
-  };
-}
-
-export function rememberHome(homeId: string) {
-  try {
-    localStorage.setItem(HOME_KEY, homeId);
-  } catch {}
-}
+const POLL_MS = 30_000;
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const path = usePathname();
-  const [ctx, setCtx] = useState<Ctx | null>(null);
-  const [version, setVersion] = useState(0);
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  const [conn, setConn] = useState<Saved | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loadedRef = useRef<Loaded | null>(null);
+  loadedRef.current = loaded;
 
-  const refresh = useCallback(async () => {
-    const result = await loadContext();
-    if (result === "login") router.replace(`/login/?next=${encodeURIComponent(path)}`);
-    else if (result === "onboarding") router.replace("/willkommen/");
-    else {
-      setCtx(result);
-      setVersion((v) => v + 1);
-    }
-  }, [router, path]);
+  const reload = useCallback(async () => {
+    const c = readConnection();
+    if (!c) return;
+    const l = await loadDoc(c);
+    if (l && l.sha !== loadedRef.current?.sha) setLoaded(l);
+  }, []);
 
   useEffect(() => {
-    refresh();
-    // only on first mount; pages call refresh() after profile/home edits
+    const c = readConnection();
+    if (!c) {
+      router.replace(`/login/?next=${encodeURIComponent(path)}`);
+      return;
+    }
+    setConn(c);
+    loadDoc(c)
+      .then((l) => {
+        if (!l || !c.memberId || !l.doc.members.some((m) => m.id === c.memberId)) {
+          router.replace("/willkommen/");
+          return;
+        }
+        setLoaded(l);
+      })
+      .catch((e) => setError(String(e.message ?? e)));
+    // only on first mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!ctx) return <Splash />;
-  return <AppContext.Provider value={{ ...ctx, refresh, bump, version }}>{children}</AppContext.Provider>;
+  // Pick up changes from the rest of the family while the app is open.
+  useEffect(() => {
+    const tick = () => document.visibilityState === "visible" && reload().catch(() => {});
+    const id = setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [reload]);
+
+  const mutate = useCallback(
+    async (message: string, change: (doc: HiwoDoc) => void) => {
+      const c = readConnection()!;
+      const next = await updateDoc(c, loadedRef.current, message, change);
+      loadedRef.current = next;
+      setLoaded(next);
+    },
+    [],
+  );
+
+  if (error) return <ConnectionError message={error} />;
+  if (!conn || !loaded) return <Splash />;
+  const me = loaded.doc.members.find((m) => m.id === conn.memberId);
+  if (!me) return <Splash />;
+
+  return (
+    <AppContext.Provider value={{ conn, doc: loaded.doc, me, mutate, reload }}>{children}</AppContext.Provider>
+  );
 }
 
 export function Splash() {
@@ -99,20 +101,35 @@ export function Splash() {
   );
 }
 
-/**
- * Tiny data hook: runs `load` with the app context, again whenever `deps`
- * change or any mutation calls `bump()`.
- */
-export function useData<T>(load: (ctx: Ctx) => Promise<T>, deps: unknown[] = []) {
-  const ctx = useApp();
-  const [data, setData] = useState<T | null>(null);
+function ConnectionError({ message }: { message: string }) {
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 text-center">
+      <p className="font-serif text-[30px]">hiwo kommt gerade nicht an deine Daten.</p>
+      <p className="mt-3 text-[14px] text-muted">{message}</p>
+      <a href="./" className="mt-6 text-[14px] underline">
+        Noch einmal versuchen
+      </a>
+    </main>
+  );
+}
+
+/** Blob URL of a private photo in the data repo (null while loading). */
+export function usePhotoUrl(path: string | null | undefined) {
+  const { conn } = useApp();
+  const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    load(ctx).then((d) => alive && setData(d));
+    setUrl(null);
+    if (path) photoUrl(conn, path).then((u) => alive && setUrl(u), () => {});
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.home.id, ctx.version, ...deps]);
-  return { data, reload: ctx.bump };
+  }, [conn, path]);
+  return url;
+}
+
+/** Display name of a member id (falls back for people who left). */
+export function useMemberName() {
+  const { doc } = useApp();
+  return (id: string | null | undefined) => doc.members.find((m) => m.id === id)?.name ?? "Jemand";
 }

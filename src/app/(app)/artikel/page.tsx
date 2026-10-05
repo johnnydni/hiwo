@@ -4,10 +4,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { signPaths } from "@/lib/data";
-import { useApp, useData } from "@/components/app-context";
-import { displayName, formatPrice, relativeDay } from "@/lib/format";
-import type { Profile, ShoppingItem } from "@/lib/types";
+import { useApp, useMemberName } from "@/components/app-context";
+import { formatPrice, relativeDay } from "@/lib/format";
 import { Avatar, EmptyState, PageHeader, buttonClass } from "@/components/ui";
 import { ItemActions, ItemImage } from "./item-actions";
 
@@ -19,34 +17,21 @@ export default function ItemPage() {
   );
 }
 
+function hostname(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function Item() {
   const itemId = useSearchParams().get("id") ?? "";
-  const { home } = useApp();
-  const { data: loaded } = useData(
-    async ({ supabase, home }) => {
-      const { data } = await supabase
-        .from("shopping_items")
-        .select("*")
-        .eq("id", itemId)
-        .eq("home_id", home.id)
-        .maybeSingle();
-      if (!data) return { item: null } as const;
-      const item = data as ShoppingItem;
-      const [{ data: rooms }, { data: people }, urls] = await Promise.all([
-        supabase.from("rooms").select("id,name").eq("home_id", home.id).order("position"),
-        supabase
-          .from("profiles")
-          .select("id,email,display_name,avatar_path")
-          .in("id", [item.created_by, item.done_by].filter(Boolean) as string[]),
-        signPaths(supabase, [item.image_path]),
-      ]);
-      return { item, rooms: rooms ?? [], people: (people ?? []) as Profile[], urls };
-    },
-    [itemId],
-  );
+  const { doc } = useApp();
+  const nameOf = useMemberName();
+  const item = doc.shopping.find((s) => s.id === itemId);
 
-  if (!loaded) return null;
-  if (!loaded.item)
+  if (!item)
     return (
       <EmptyState
         title="Diesen Artikel gibt es nicht mehr."
@@ -57,21 +42,16 @@ function Item() {
         }
       />
     );
-  const { item, rooms, people, urls } = loaded;
-  const byId = new Map(people.map((p) => [p.id, p]));
+  const rooms = [...doc.rooms].sort((a, b) => a.position - b.position).map((r) => ({ id: r.id, name: r.name }));
   const roomName = rooms.find((r) => r.id === item.room_id)?.name ?? "Gesamte Wohnung";
-  const creator = item.created_by ? byId.get(item.created_by) : null;
-  const doneBy = item.done_by ? byId.get(item.done_by) : null;
+  const creator = item.created_by ? nameOf(item.created_by) : null;
+  const doneBy = item.done_by ? nameOf(item.done_by) : null;
 
   return (
     <div>
       <PageHeader back="/einkauf" title="" />
       <div className="-mt-6 px-4 md:px-0">
-        <ItemImage
-          homeId={home.id}
-          itemId={item.id}
-          url={item.image_path ? (urls.get(item.image_path) ?? null) : null}
-        />
+        <ItemImage itemId={item.id} path={item.image_path} />
         <div className="animate-fade-up mt-5">
           <h1 className="font-serif text-[34px] leading-tight">{item.name}</h1>
           <p className="text-[13px] text-muted">{roomName}</p>
@@ -88,7 +68,7 @@ function Item() {
             className="mt-6 flex items-center gap-2 text-[14px] text-muted hover:text-ink"
           >
             <ExternalLink size={16} strokeWidth={1.6} />
-            {new URL(item.url).hostname.replace(/^www\./, "")}
+            {hostname(item.url)}
           </a>
         )}
 
@@ -102,14 +82,14 @@ function Item() {
         <div className="mt-7 space-y-3 text-[13px] text-muted">
           {creator && (
             <p className="flex items-center gap-2">
-              <Avatar name={displayName(creator)} size={26} />
-              Hinzugefügt von {displayName(creator)} · {relativeDay(item.created_at)}
+              <Avatar name={creator} size={26} />
+              Hinzugefügt von {creator} · {relativeDay(item.created_at)}
             </p>
           )}
           {item.status === "done" && doneBy && item.done_at && (
             <p className="flex items-center gap-2">
-              <Avatar name={displayName(doneBy)} size={26} />
-              Erledigt von {displayName(doneBy)} · {relativeDay(item.done_at)}
+              <Avatar name={doneBy} size={26} />
+              Erledigt von {doneBy} · {relativeDay(item.done_at)}
             </p>
           )}
         </div>
