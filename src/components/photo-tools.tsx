@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Layers, PenLine, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Layers, PenLine, Share, Trash2 } from "lucide-react";
 import { useApp, useMemberName } from "./app-context";
 import { useActions } from "./use-actions";
 import { MarkupEditor } from "./markup-editor";
@@ -9,6 +9,8 @@ import { Photo } from "./photo";
 import { Sheet } from "./sheet";
 import { Button, cx } from "./ui";
 import { relativeDay } from "@/lib/format";
+import { photoUrl } from "@/lib/store";
+import type { HiwoDoc } from "@/lib/types";
 
 /**
  * Two round buttons for the bottom-right corner of an opened photo: draw on
@@ -103,8 +105,9 @@ function SketchesSheet({
   onDraw: (path: string) => void;
   originalPath: string;
 }) {
-  const { doc } = useApp();
+  const { doc, conn } = useApp();
   const { deleteSketch } = useActions();
+  const [exporting, setExporting] = useState(false);
   const name = useMemberName();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -136,7 +139,19 @@ function SketchesSheet({
           <p className="mt-2 text-[13px] text-muted">
             Version {sketches.length - sketches.indexOf(current)} · {name(current.created_by)}, {relativeDay(current.created_at)}
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <Button
+            className="mt-4 w-full"
+            loading={exporting}
+            onClick={async () => {
+              setExporting(true);
+              const version = sketches.length - sketches.indexOf(current);
+              await exportSketch(await photoUrl(conn, current.path), `${fileLabel(doc, sourceId)} Skizze ${version}.jpg`).catch(() => {});
+              setExporting(false);
+            }}
+          >
+            {canShareFiles() ? <Share size={17} /> : <Download size={17} />} {canShareFiles() ? "Teilen oder sichern" : "Herunterladen"}
+          </Button>
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <Button variant="secondary" onClick={() => onDraw(current.path)}>
               <PenLine size={17} /> Weiterzeichnen
             </Button>
@@ -180,4 +195,44 @@ function SketchesSheet({
       )}
     </Sheet>
   );
+}
+
+/** "Wohnzimmer Japandi", "Schlafzimmer Ausgangsfoto" or the product's name: what the exported file is called. */
+function fileLabel(doc: HiwoDoc, sourceId: string) {
+  const photo = doc.photos.find((p) => p.id === sourceId);
+  const label = photo
+    ? `${doc.rooms.find((r) => r.id === photo.room_id)?.name ?? "Zimmer"} ${photo.kind === "base" ? "Ausgangsfoto" : (photo.name ?? "Variante")}`
+    : (doc.shopping.find((i) => i.id === sourceId)?.name ?? "hiwo");
+  return label.replace(/[\\/:*?"<>|]+/g, " ").trim();
+}
+
+// phones (and Safari) can hand a file to the share sheet: save to Fotos, send by WhatsApp, ...
+function canShareFiles() {
+  try {
+    return typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([], "x.jpg", { type: "image/jpeg" })] });
+  } catch {
+    return false;
+  }
+}
+
+/** Share sheet where there is one, else a plain download. */
+async function exportSketch(url: string, name: string) {
+  const blob = await (await fetch(url)).blob();
+  const file = new File([blob], name, { type: "image/jpeg" });
+  if (canShareFiles()) {
+    try {
+      await navigator.share({ files: [file], title: name.replace(/\.jpg$/, "") });
+      return;
+    } catch (e) {
+      // closing the share sheet is not an error; anything else falls back to the download
+      if (e instanceof DOMException && e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
