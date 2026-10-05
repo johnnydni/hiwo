@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { Check, ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { useApp } from "@/components/app-context";
 import { useActions } from "@/components/use-actions";
 import { TargetSelect, useTargetLabel } from "@/components/target-select";
-import { Photo } from "@/components/photo";
+import { ItemRow } from "@/components/item-list";
 import { formatPrice } from "@/lib/format";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
@@ -25,6 +25,7 @@ export function ShoppingList({
   initialRoom: string | null;
   initiallyAdding: boolean;
 }) {
+  const { doc } = useApp();
   const { setShoppingDone } = useActions();
   const [mode, setMode] = useState<"all" | "room">(initialRoom ? "room" : "all");
   const [room, setRoom] = useState<string | null>(initialRoom ?? rooms[0]?.id ?? null);
@@ -54,6 +55,14 @@ export function ShoppingList({
 
   const total = open.reduce((s, i) => s + (i.price_cents ?? 0), 0);
 
+  // Under a room heading the room name is noise; keep only the variant and the price.
+  const targetLabel = useTargetLabel();
+  const variantName = (it: Item) => doc.photos.find((p) => p.id === it.variant_id)?.name;
+  const meta = (it: Item, grouped: boolean) =>
+    [grouped ? (it.room_id ? variantName(it) : null) : targetLabel(it), formatPrice(it.price_cents)]
+      .filter(Boolean)
+      .join(" · ");
+
   return (
     <div className="px-4 md:px-0">
       <div className="inline-flex rounded-full bg-line/70 p-1 text-[13px]">
@@ -61,7 +70,7 @@ export function ShoppingList({
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={cx("rounded-full px-4 py-1.5 transition", mode === m ? "bg-ink text-white" : "text-ink/70")}
+            className={cx("rounded-full px-4 py-2 transition", mode === m ? "bg-ink text-white" : "text-ink/70")}
           >
             {m === "all" ? "Gesamte Wohnung" : "Nach Zimmer"}
           </button>
@@ -76,7 +85,7 @@ export function ShoppingList({
                 key={r.id}
                 onClick={() => setRoom(r.id)}
                 className={cx(
-                  "shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] transition",
+                  "shrink-0 rounded-full border px-3.5 py-2 text-[13px] transition",
                   room === r.id ? "border-ink bg-card" : "border-line text-muted",
                 )}
               >
@@ -100,7 +109,7 @@ export function ShoppingList({
             {g.title && <h2 className="mb-2 text-[13px] font-medium tracking-wide text-muted uppercase">{g.title}</h2>}
             <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
               {g.items.map((it) => (
-                <Row key={it.id} item={it} onToggle={() => toggle(it)} />
+                <ItemRow key={it.id} item={it} meta={meta(it, true)} onToggle={() => toggle(it)} />
               ))}
             </ul>
           </section>
@@ -114,7 +123,7 @@ export function ShoppingList({
             {showDone && (
               <ul className="divide-y divide-line rounded-card bg-card/60 px-4">
                 {done.map((it) => (
-                  <Row key={it.id} item={it} onToggle={() => toggle(it)} />
+                  <ItemRow key={it.id} item={it} meta={meta(it, false)} onToggle={() => toggle(it)} />
                 ))}
               </ul>
             )}
@@ -123,7 +132,7 @@ export function ShoppingList({
       </div>
 
       {(open.length > 0 || done.length > 0) && (
-        <div className="sticky bottom-24 mt-8 flex items-center gap-3 md:bottom-6">
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] mt-8 flex items-center gap-3 lg:bottom-6">
           <Button className="flex-1 shadow-soft" onClick={() => setAdding(true)}>
             <Plus size={18} /> Artikel hinzufügen
           </Button>
@@ -141,33 +150,6 @@ export function ShoppingList({
         defaultRoom={mode === "room" ? room : null}
       />
     </div>
-  );
-}
-
-function Row({ item, onToggle }: { item: Item; onToggle: () => void }) {
-  const done = item.status === "done";
-  const meta = [useTargetLabel()(item), formatPrice(item.price_cents)].filter(Boolean).join(" · ");
-  return (
-    <li className="flex items-center gap-3 py-3">
-      <button
-        onClick={onToggle}
-        aria-label={done ? "Wieder öffnen" : "Als erledigt markieren"}
-        className={cx(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition",
-          done ? "border-sage bg-sage text-white" : "border-ink/30 hover:border-ink",
-        )}
-      >
-        {done && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
-      </button>
-      {item.image_path && <Photo path={item.image_path} className="h-10 w-10 shrink-0 rounded-[10px]" />}
-      <Link href={`/artikel?id=${item.id}`} className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="min-w-0 flex-1">
-          <span className={cx("block truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>
-          <span className="block truncate text-[12px] text-muted">{meta}</span>
-        </span>
-        <ChevronRight size={16} strokeWidth={1.6} className="shrink-0 text-faint" />
-      </Link>
-    </li>
   );
 }
 

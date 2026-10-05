@@ -53,7 +53,7 @@ function VariantView() {
         <Link
           href={`/zimmer?id=${room.id}`}
           aria-label="Zurück"
-          className="absolute top-4 left-4 rounded-full bg-white/85 p-2 backdrop-blur md:top-14"
+          className="absolute top-4 left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/85 backdrop-blur md:top-14"
         >
           <ArrowLeft size={20} strokeWidth={1.6} />
         </Link>
@@ -106,7 +106,7 @@ function EditVariant({ variant }: { variant: RoomPhoto }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label="Variante bearbeiten" className="-mr-2 mt-5 rounded-full p-2 hover:bg-ink/5">
+      <button onClick={() => setOpen(true)} aria-label="Variante bearbeiten" className="-mr-3 mt-4 flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/5">
         <Pencil size={19} strokeWidth={1.6} />
       </button>
       <Sheet open={open} onClose={close} title="Variante bearbeiten">

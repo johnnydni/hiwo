@@ -41,9 +41,9 @@ export function ItemList({
     <div>
       <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">
         {open.map((it) => (
-          <Row key={it.id} item={it} onToggle={() => toggle(it)} />
+          <ItemRow key={it.id} item={it} onToggle={() => toggle(it)} />
         ))}
-        {showDone && done.map((it) => <Row key={it.id} item={it} onToggle={() => toggle(it)} />)}
+        {showDone && done.map((it) => <ItemRow key={it.id} item={it} onToggle={() => toggle(it)} />)}
         <li>
           <form
             onSubmit={(e) => {
@@ -68,10 +68,10 @@ export function ItemList({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={placeholder}
-              className="h-10 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-faint"
+              className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-faint"
             />
             {name.trim() && (
-              <button disabled={pending} className="text-[14px] font-medium">
+              <button disabled={pending} className="-mr-2 h-11 px-2 text-[14px] font-medium">
                 Hinzufügen
               </button>
             )}
@@ -92,24 +92,34 @@ export function ItemList({
   );
 }
 
-function Row({ item, onToggle }: { item: ShoppingItem; onToggle: () => void }) {
+/** One shopping item: check circle (44px tap area), optional product photo, link to the item. */
+export function ItemRow({ item, onToggle, meta }: { item: ShoppingItem; onToggle: () => void; meta?: string }) {
   const done = item.status === "done";
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex items-center gap-1.5 py-1.5">
       <button
         onClick={onToggle}
         aria-label={done ? "Wieder öffnen" : "Als erledigt markieren"}
-        className={cx(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition",
-          done ? "border-sage bg-sage text-white" : "border-ink/30 hover:border-ink",
-        )}
+        className="group/check -ml-2.5 flex h-11 w-11 shrink-0 items-center justify-center"
       >
-        {done && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
+        <span
+          className={cx(
+            "flex h-6 w-6 items-center justify-center rounded-full border transition",
+            done ? "border-sage bg-sage text-white" : "border-ink/30 group-hover/check:border-ink",
+          )}
+        >
+          {done && <Check size={14} strokeWidth={2.4} className="animate-pop" />}
+        </span>
       </button>
-      {item.image_path && <Photo path={item.image_path} className="h-10 w-10 shrink-0 rounded-[10px]" />}
-      <Link href={`/artikel?id=${item.id}`} className="flex min-w-0 flex-1 items-center gap-2">
-        <span className={cx("min-w-0 flex-1 truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>
-        {item.price_cents != null && <span className="text-[13px] text-muted">{formatPrice(item.price_cents)}</span>}
+      {item.image_path && <Photo path={item.image_path} className="mr-1.5 h-10 w-10 shrink-0 rounded-[10px]" />}
+      <Link href={`/artikel?id=${item.id}`} className="flex min-h-11 min-w-0 flex-1 items-center gap-2">
+        <span className="min-w-0 flex-1">
+          <span className={cx("block truncate text-[15px]", done && "text-muted line-through")}>{item.name}</span>
+          {meta && <span className="block truncate text-[12px] text-muted">{meta}</span>}
+        </span>
+        {meta === undefined && item.price_cents != null && (
+          <span className="shrink-0 text-[13px] text-muted">{formatPrice(item.price_cents)}</span>
+        )}
         <ChevronRight size={16} strokeWidth={1.6} className="shrink-0 text-faint" />
       </Link>
     </li>

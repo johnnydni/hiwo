@@ -1,5 +1,6 @@
 "use client";
 
+import { Camera } from "lucide-react";
 import { usePhotoUrl } from "./app-context";
 import { PhotoPlaceholder, cx } from "./ui";
 
@@ -21,8 +22,14 @@ export function Photo({
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt={alt} className={cx("animate-fade-in h-full w-full object-cover", imgClassName)} />
+      ) : path ? (
+        <PhotoPlaceholder className="animate-shimmer h-full w-full" />
       ) : (
-        <PhotoPlaceholder className={cx("h-full w-full", path && "animate-shimmer")} />
+        <PhotoPlaceholder className="h-full w-full">
+          <span className="absolute inset-0 flex items-center justify-center text-ink/25">
+            <Camera size={26} strokeWidth={1.3} aria-label="Noch kein Foto" />
+          </span>
+        </PhotoPlaceholder>
       )}
     </div>
   );

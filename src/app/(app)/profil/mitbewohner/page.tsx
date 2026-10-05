@@ -8,7 +8,7 @@ export default function MitbewohnerPage() {
   const { doc, me } = useApp();
 
   return (
-    <div>
+    <div className="max-w-2xl">
       <PageHeader back="/profil" title="Mitbewohner" subtitle={doc.home.name} />
       <div className="px-4 md:px-0">
         <ul className="divide-y divide-line rounded-card bg-card px-4 shadow-soft">

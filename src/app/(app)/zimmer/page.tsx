@@ -47,7 +47,7 @@ function RoomView() {
         <Link
           href="/wohnung"
           aria-label="Zurück"
-          className="absolute top-4 left-4 rounded-full bg-white/85 p-2 backdrop-blur md:top-14"
+          className="absolute top-4 left-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/85 backdrop-blur md:top-14"
         >
           <ArrowLeft size={20} strokeWidth={1.6} />
         </Link>

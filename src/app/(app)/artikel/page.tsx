@@ -52,54 +52,56 @@ function Item() {
   return (
     <div>
       <PageHeader back={forHref ?? "/einkauf"} title="" />
-      <div className="-mt-6 px-4 md:px-0">
+      <div className="-mt-6 px-4 md:grid md:grid-cols-2 md:items-start md:gap-10 md:px-0">
         <ItemImage itemId={item.id} path={item.image_path} />
-        <div className="animate-fade-up mt-5">
-          <h1 className="font-serif text-[34px] leading-tight">{item.name}</h1>
-          {forHref ? (
-            <Link href={forHref} className="text-[13px] text-muted underline-offset-2 hover:underline">
-              {forLabel}
-            </Link>
-          ) : (
-            <p className="text-[13px] text-muted">{forLabel}</p>
+        <div>
+          <div className="animate-fade-up mt-5 md:mt-0">
+            <h1 className="font-serif text-[34px] leading-tight break-words">{item.name}</h1>
+            {forHref ? (
+              <Link href={forHref} className="text-[13px] text-muted underline-offset-2 hover:underline">
+                {forLabel}
+              </Link>
+            ) : (
+              <p className="text-[13px] text-muted">{forLabel}</p>
+            )}
+            {item.price_cents != null && <p className="mt-3 text-[20px] font-semibold">{formatPrice(item.price_cents)}</p>}
+          </div>
+
+          <ItemActions item={item} />
+
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 flex items-center gap-2 text-[14px] text-muted hover:text-ink"
+            >
+              <ExternalLink size={16} strokeWidth={1.6} />
+              {hostname(item.url)}
+            </a>
           )}
-          {item.price_cents != null && <p className="mt-3 text-[20px] font-semibold">{formatPrice(item.price_cents)}</p>}
-        </div>
 
-        <ItemActions item={item} />
-
-        {item.url && (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-6 flex items-center gap-2 text-[14px] text-muted hover:text-ink"
-          >
-            <ExternalLink size={16} strokeWidth={1.6} />
-            {hostname(item.url)}
-          </a>
-        )}
-
-        {item.note && (
-          <section className="mt-7">
-            <h2 className="mb-2 text-[15px] font-semibold">Notizen</h2>
-            <p className="rounded-card bg-card p-4 text-[14px] leading-relaxed shadow-soft">„{item.note}“</p>
-          </section>
-        )}
-
-        <div className="mt-7 space-y-3 text-[13px] text-muted">
-          {creator && (
-            <p className="flex items-center gap-2">
-              <Avatar name={creator} size={26} />
-              Hinzugefügt von {creator} · {relativeDay(item.created_at)}
-            </p>
+          {item.note && (
+            <section className="mt-7">
+              <h2 className="mb-2 text-[15px] font-semibold">Notizen</h2>
+              <p className="rounded-card bg-card p-4 text-[14px] leading-relaxed shadow-soft">„{item.note}“</p>
+            </section>
           )}
-          {item.status === "done" && doneBy && item.done_at && (
-            <p className="flex items-center gap-2">
-              <Avatar name={doneBy} size={26} />
-              Erledigt von {doneBy} · {relativeDay(item.done_at)}
-            </p>
-          )}
+
+          <div className="mt-7 space-y-3 text-[13px] text-muted">
+            {creator && (
+              <p className="flex items-center gap-2">
+                <Avatar name={creator} size={26} />
+                Hinzugefügt von {creator} · {relativeDay(item.created_at)}
+              </p>
+            )}
+            {item.status === "done" && doneBy && item.done_at && (
+              <p className="flex items-center gap-2">
+                <Avatar name={doneBy} size={26} />
+                Erledigt von {doneBy} · {relativeDay(item.done_at)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -59,7 +59,7 @@ export function AddRoomButton({ existing, initiallyOpen, big }: { existing: stri
           <Plus size={18} /> Zimmer hinzufügen
         </Button>
       ) : (
-        <button onClick={() => setOpen(true)} aria-label="Zimmer hinzufügen" className="-mr-2 rounded-full p-2 hover:bg-ink/5">
+        <button onClick={() => setOpen(true)} aria-label="Zimmer hinzufügen" className="-mr-3 flex h-11 w-11 items-center justify-center rounded-full hover:bg-ink/5">
           <Plus size={22} strokeWidth={1.6} />
         </button>
       )}

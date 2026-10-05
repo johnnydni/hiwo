@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cx } from "./ui";
 
@@ -30,12 +31,14 @@ export function Sheet({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // Portal: a sheet opened from an animated header would otherwise be positioned
+  // inside that header (transforms make `fixed` relative to the element).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal>
       <button aria-label="Schließen" className="animate-fade-in absolute inset-0 bg-ink/30" onClick={onClose} />
       <div
         className={cx(
-          "animate-sheet-up relative max-h-[90dvh] w-full overflow-y-auto rounded-t-sheet px-5 pt-3 pb-8 pb-safe shadow-soft",
+          "animate-sheet-up relative max-h-[90dvh] w-full overflow-y-auto overscroll-contain rounded-t-sheet px-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-soft",
           "md:max-w-lg md:rounded-sheet md:pb-6",
           dark ? "bg-ink text-white" : "bg-paper",
         )}
@@ -46,13 +49,14 @@ export function Sheet({
           <button
             onClick={onClose}
             aria-label="Schließen"
-            className={cx("rounded-full p-1.5", dark ? "hover:bg-white/10" : "hover:bg-ink/5")}
+            className={cx("-mr-2 flex h-11 w-11 items-center justify-center rounded-full", dark ? "hover:bg-white/10" : "hover:bg-ink/5")}
           >
             <X size={20} strokeWidth={1.6} />
           </button>
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
