@@ -63,6 +63,26 @@ for (let i = 0; i < palettes.length; i++) {
   }, [palettes[i], i]);
   jpg.push(Buffer.from(data, "base64"));
 }
+// a product shot on white (armchair with a white cushion, which must stay)
+const product = Buffer.from(
+  await gen.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 900; c.height = 900;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, 900, 900);
+    g.fillStyle = "rgba(0,0,0,0.08)"; g.beginPath(); g.ellipse(450, 760, 330, 30, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#4d6b5a";
+    g.beginPath(); g.roundRect(170, 220, 560, 330, 60); g.fill();
+    g.beginPath(); g.roundRect(120, 420, 150, 260, 40); g.fill();
+    g.beginPath(); g.roundRect(630, 420, 150, 260, 40); g.fill();
+    g.beginPath(); g.roundRect(240, 500, 420, 180, 30); g.fill();
+    g.fillStyle = "#f4f1ea"; g.beginPath(); g.roundRect(330, 330, 240, 150, 40); g.fill();
+    g.fillStyle = "#6b4f3a";
+    for (const x of [170, 700]) g.fillRect(x, 680, 30, 80);
+    return c.toDataURL("image/jpeg", 0.9).split(",")[1];
+  }),
+  "base64",
+);
 await gen.close();
 
 // --- seed ---------------------------------------------------------------
@@ -104,6 +124,8 @@ const shopping = [
   item("s12", "Ein sehr langer Artikelname, der auf dem Handy umbrechen oder abgeschnitten werden muss", "r4", null, 19900),
 ];
 gh.files.set("fotos/einkauf/s2.jpg", jpg[2]);
+gh.files.set("fotos/einkauf/s13.jpg", product);
+shopping.push(item("s13", "Sessel Salbei", "r0", "v0", 59900, "open", { image_path: "fotos/einkauf/s13.jpg", image_sha: "x" }));
 gh.files.set("fotos/skizzen/b0/k1.jpg", jpg[1]);
 const sketches = [{ id: "k1", source_id: "b0", path: "fotos/skizzen/b0/k1.jpg", sha: "x", width: 1200, height: 900, created_by: "m2", created_at: t(4) }];
 const doc = {
