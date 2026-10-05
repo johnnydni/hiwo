@@ -222,10 +222,10 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
     await page.waitForSelector("li:has-text('Samtsessel')");
     // a new picture for the variant: id, name and list stay, the old file goes
     const v = doc().photos.find((p) => p.kind === "variant" && p.name === "Variante 2");
-    await page.click("button[aria-label='Variante bearbeiten']");
-    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("[role=dialog] button:has-text('Bild ersetzen')")]);
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("button[aria-label='Bild ersetzen']")]);
     await chooser.setFiles(`${OUT}/room3.jpg`);
-    await page.waitForSelector("[role=dialog]", { state: "detached", timeout: 20000 });
+    for (let t = 0; t < 100 && doc().photos.find((p) => p.id === v.id)?.path === v.path; t++) await page.waitForTimeout(200);
+    await page.waitForTimeout(800);
     const nv = doc().photos.find((p) => p.id === v.id);
     replaceCheck = {
       samePhotoId: !!nv,
