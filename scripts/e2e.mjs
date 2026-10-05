@@ -252,7 +252,8 @@ await shot("06b-rooms");
 // an own title picture for the home, uploaded right on the rooms overview
 const coverBefore = doc().home.cover_photo_id;
 {
-  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("button[aria-label='Titelbild ändern']")]);
+  await page.click("button[aria-label='Titelbild ändern']");
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("text=Eigenes Foto hochladen")]);
   await chooser.setFiles(`${OUT}/room0.jpg`);
   for (let t = 0; t < 100 && !doc().home.cover; t++) await page.waitForTimeout(200);
   await page.waitForTimeout(800);
@@ -264,6 +265,18 @@ const titleCheck = {
   roomCoverCleared: doc().home.cover_photo_id === null,
 };
 await shot("06c-rooms-title");
+// a drawn title picture instead: the own photo goes, file included
+{
+  const own = doc().home.cover.path;
+  await page.click("button[aria-label='Titelbild ändern']");
+  await page.waitForTimeout(400);
+  await shot("06d-title-sheet");
+  await page.click("[role=dialog] button:has-text('Angekommen')");
+  for (let t = 0; t < 100 && doc().home.cover_art !== "angekommen"; t++) await page.waitForTimeout(200);
+  await page.waitForTimeout(800);
+  Object.assign(titleCheck, { art: doc().home.cover_art, artClearedOwn: !doc().home.cover && !gh.files.has(own) });
+  await shot("06e-rooms-art");
+}
 
 // shopping
 await page.goto(`${BASE}/einkauf`);
