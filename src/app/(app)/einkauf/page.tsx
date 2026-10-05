@@ -21,7 +21,7 @@ function Einkauf() {
     .sort((a, b) => a.position - b.position)
     .map((r) => ({ id: r.id, name: r.name }));
   return (
-    <>
+    <div className="max-w-3xl">
       <PageHeader title="Einkauf" subtitle={doc.home.name} />
       <ShoppingList
         items={doc.shopping}
@@ -29,6 +29,6 @@ function Einkauf() {
         initialRoom={params.get("zimmer")}
         initiallyAdding={params.get("neu") === "1"}
       />
-    </>
+    </div>
   );
 }

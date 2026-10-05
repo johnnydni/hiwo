@@ -77,7 +77,7 @@ export function MemberRowActions({ memberId, name }: { memberId: string; name: s
   const { removeMember } = useActions();
   return (
     <>
-      <button aria-label="Mehr" onClick={() => setOpen(true)} className="rounded-full p-2 text-muted hover:text-ink">
+      <button aria-label="Mehr" onClick={() => setOpen(true)} className="-mr-3 flex h-11 w-11 items-center justify-center rounded-full text-muted hover:text-ink">
         <MoreHorizontal size={18} strokeWidth={1.6} />
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={name}>

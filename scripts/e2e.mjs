@@ -130,9 +130,9 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
   if (k === 0) {
     // name it and fill its list
     await page.click("button[aria-label='Variante bearbeiten']");
-    await page.fill("input[name=name]", "Japandi");
+    await page.fill("[role=dialog] input[name=name]", "Japandi");
     await page.fill("textarea[name=note]", "Hell, Holz, wenig Zeug.");
-    await page.click("button:has-text('Speichern')");
+    await page.click("[role=dialog] button:has-text('Speichern')");
     await page.waitForSelector("h1:has-text('Japandi')");
     for (const f of ["Leinensofa", "Couchtisch Eiche", "Papierleuchte"]) {
       await page.fill("input[placeholder^='z.B. Sofa']", f);
@@ -168,7 +168,7 @@ await shot("06b-rooms");
 await page.goto(`${BASE}/einkauf`);
 const add = async (name, room, price) => {
   await page.click("button:has-text('Artikel hinzufügen')");
-  await page.fill("input[name=name]", name);
+  await page.fill("[role=dialog] input[name=name]", name);
   if (room) await page.selectOption("select[name=target]", { label: room });
   if (price) {
     if (await page.isVisible("text=+ Preis, Link oder Notiz")) await page.click("text=+ Preis, Link oder Notiz");

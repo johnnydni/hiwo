@@ -32,7 +32,7 @@ export function Input({ className, ...props }: ComponentProps<"input">) {
     <input
       {...props}
       className={cx(
-        "h-12 w-full rounded-input border border-line bg-card px-4 text-[15px] text-ink",
+        "h-12 w-full rounded-input border border-line bg-card px-4 text-base text-ink",
         "placeholder:text-faint outline-none transition focus:border-ink/40",
         className,
       )}
@@ -45,7 +45,7 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
     <textarea
       {...props}
       className={cx(
-        "min-h-24 w-full rounded-input border border-line bg-card px-4 py-3 text-[15px] text-ink",
+        "min-h-24 w-full rounded-input border border-line bg-card px-4 py-3 text-base text-ink",
         "placeholder:text-faint outline-none transition focus:border-ink/40",
         className,
       )}
@@ -81,7 +81,7 @@ export function PageHeader({
     <header className="animate-fade-up px-4 pt-6 pb-4 md:px-0 md:pt-10">
       <div className="flex min-h-10 items-center justify-between">
         {back ? (
-          <Link href={back} aria-label="Zurück" className="-ml-2 rounded-full p-2 hover:bg-ink/5">
+          <Link href={back} aria-label="Zurück" className="-ml-3 flex h-11 w-11 items-center justify-center rounded-full hover:bg-ink/5">
             <ArrowLeft size={22} strokeWidth={1.6} />
           </Link>
         ) : (
@@ -132,7 +132,7 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
 }
 
 /** Photo placeholder used when a room has no photo yet. Warm, not an icon grid. */
-export function PhotoPlaceholder({ className, label }: { className?: string; label?: string }) {
+export function PhotoPlaceholder({ className, label, children }: { className?: string; label?: string; children?: ReactNode }) {
   return (
     <div
       className={cx(
@@ -141,6 +141,7 @@ export function PhotoPlaceholder({ className, label }: { className?: string; lab
       )}
     >
       {label && <span className="font-serif text-[22px] text-ink/40">{label}</span>}
+      {children}
     </div>
   );
 }

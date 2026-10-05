@@ -23,7 +23,7 @@ function isActive(path: string, href: string) {
 export function BottomNav() {
   const path = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur pb-safe md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 backdrop-blur pb-safe lg:hidden">
       <ul className="mx-auto flex max-w-md justify-around px-2 pt-2 pb-2">
         {items.map(({ href, label, icon: Icon }) => {
           const active = isActive(path, href);
@@ -32,7 +32,7 @@ export function BottomNav() {
               <Link
                 href={href}
                 className={cx(
-                  "flex w-16 flex-col items-center gap-1 py-1 text-[11px] transition",
+                  "flex min-h-11 w-16 flex-col items-center justify-center gap-1 py-1 text-[11px] transition",
                   active ? "text-ink" : "text-faint",
                 )}
               >
@@ -50,7 +50,7 @@ export function BottomNav() {
 export function SideNav() {
   const path = usePathname();
   return (
-    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line px-5 py-8 md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line px-5 py-8 lg:flex">
       <Link href="/" className="mb-10 block">
         <span className="font-serif text-[36px] leading-none">hiwo</span>
         <span className="mt-1 block text-[13px] text-muted">hier wohne ich.</span>

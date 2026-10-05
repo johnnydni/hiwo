@@ -14,7 +14,7 @@ export function TargetSelect({ defaultValue }: { defaultValue: string }) {
       <select
         name="target"
         defaultValue={defaultValue}
-        className="h-12 w-full rounded-input border border-line bg-card px-4 text-[15px] outline-none"
+        className="h-12 w-full rounded-input border border-line bg-card px-4 text-base outline-none"
       >
         <option value="">Gesamte Wohnung</option>
         {rooms.map((r) =>

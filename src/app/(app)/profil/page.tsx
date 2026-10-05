@@ -18,7 +18,7 @@ export default function ProfilPage() {
   const name = me.name;
 
   return (
-    <div className="px-4 pt-8 md:px-0 md:pt-12">
+    <div className="max-w-2xl px-4 pt-8 md:px-0 md:pt-12">
       <div className="animate-fade-up flex items-center gap-4">
         <Avatar name={name} size={60} />
         <div className="flex-1">

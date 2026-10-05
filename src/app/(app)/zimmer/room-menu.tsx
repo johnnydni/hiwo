@@ -16,7 +16,7 @@ export function RoomMenu({ roomId, name }: { roomId: string; name: string }) {
   const router = useRouter();
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label="Mehr" className="-mr-2 mt-2 rounded-full p-2 hover:bg-ink/5">
+      <button onClick={() => setOpen(true)} aria-label="Mehr" className="-mr-3 mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/5">
         <MoreHorizontal size={22} strokeWidth={1.6} />
       </button>
       <Sheet open={open} onClose={() => { setOpen(false); setConfirm(false); }} title="Zimmer bearbeiten">

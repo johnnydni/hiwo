@@ -22,8 +22,8 @@ export default function HomePage() {
   return (
     <div className="px-4 md:px-0">
       <header className="animate-fade-up pt-6 md:pt-10">
-        <p className="font-serif text-[30px] leading-none md:hidden">hiwo</p>
-        <h1 className="mt-6 font-serif text-[30px] leading-tight md:mt-0 md:text-[40px]">
+        <p className="font-serif text-[30px] leading-none lg:hidden">hiwo</p>
+        <h1 className="mt-6 font-serif text-[30px] leading-tight lg:mt-0 md:text-[40px]">
           {greeting()}, {firstName(me.name)}.
         </h1>
         <p className="mt-1 text-[14px] text-muted">Schön, dass du da bist.</p>

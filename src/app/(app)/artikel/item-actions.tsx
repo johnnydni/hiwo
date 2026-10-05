@@ -8,7 +8,7 @@ import { TargetSelect } from "@/components/target-select";
 import { usePhotoUrl } from "@/components/app-context";
 import type { ShoppingItem } from "@/lib/types";
 import { Sheet } from "@/components/sheet";
-import { Button, Input, Label, Textarea } from "@/components/ui";
+import { Button, Input, Label, Textarea, cx } from "@/components/ui";
 
 export function ItemActions({ item }: { item: ShoppingItem }) {
   const [pending, start] = useTransition();
@@ -116,7 +116,11 @@ export function ItemImage({ itemId, path }: { itemId: string; path: string | nul
     <>
       <button
         onClick={() => input.current?.click()}
-        className="relative block aspect-[4/3] w-full overflow-hidden rounded-image bg-line"
+        className={cx(
+          "relative block w-full overflow-hidden rounded-image",
+          // without a photo a slim drop zone is enough; most items never get one
+          path ? "aspect-[4/3] bg-line" : "h-24 border border-dashed border-ink/15 bg-card md:aspect-[4/3] md:h-auto",
+        )}
         aria-label={url ? "Produktfoto ändern" : "Produktfoto hinzufügen"}
       >
         {url ? (
@@ -125,8 +129,8 @@ export function ItemImage({ itemId, path }: { itemId: string; path: string | nul
         ) : path ? (
           <span className="animate-shimmer block h-full w-full bg-line" />
         ) : (
-          <span className="flex h-full flex-col items-center justify-center gap-2 text-[14px] text-muted">
-            {busy ? <Loader2 className="animate-spin" /> : <ImagePlus size={26} strokeWidth={1.4} />}
+          <span className="flex h-full items-center justify-center gap-2 text-[14px] text-muted md:flex-col">
+            {busy ? <Loader2 className="animate-spin" /> : <ImagePlus size={22} strokeWidth={1.4} />}
             Produktfoto hinzufügen
           </span>
         )}
