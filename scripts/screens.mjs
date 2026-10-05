@@ -189,39 +189,28 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${OUT}/${vp}-sheet-header.png` });
   }
-  // image editor: put the armchair (background removed) into the variant photo
-  if (!only || only.includes("editor-produkt")) {
+  // before/after slider on a variant, handle dragged to 30%
+  if (!only || only.includes("vergleich")) {
     await page.goto(BASE + "/variante/?id=v0");
     await page.waitForLoadState("networkidle");
-    await page.click("button[aria-label='Bild bearbeiten']");
-    await page.waitForSelector("canvas[aria-label='Zeichenfläche']");
+    await page.click("button:has-text('Vergleich')");
+    const box = await page.locator("[role=slider]").locator("..").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
     await page.waitForTimeout(400);
-    await page.click("button[aria-label='Produkt']");
-    await page.waitForSelector("[aria-label='Produkt einfügen']");
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-picker.png` });
-    await page.click("button[aria-label='Sessel Salbei einfügen']");
-    await page.waitForSelector("input[aria-label='Hintergrund entfernen']");
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt.png` });
-    // drag it to the left and mirror it
-    const b = await page.locator("canvas[aria-label='Zeichenfläche']").boundingBox();
-    const at = (x, y) => [b.x + b.width * x, b.y + b.height * y];
-    const drag = async (from, to) => {
-      await page.mouse.move(...from);
-      await page.mouse.down();
-      await page.mouse.move(...to, { steps: 10 });
-      await page.mouse.up();
-    };
-    await drag(at(0.5, 0.58), at(0.3, 0.62));
-    await page.click("button:has-text('Spiegeln')");
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt-bewegt.png` });
-    await page.click("button:has-text('Als Skizze sichern')");
-    await page.waitForSelector("[role=dialog] >> text=Version", { timeout: 15000 });
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-gesichert.png` });
+    await page.screenshot({ path: `${OUT}/${vp}-vergleich.png` });
   }
+  await ctx.close();
+}
+// logged-out screens
+{
+  const ctx = await browser.newContext({ viewport: VIEWPORTS[Object.keys(VIEWPORTS)[0]], deviceScaleFactor: 2, locale: "de-DE" });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/login/");
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/login.png` });
   await ctx.close();
 }
 console.log(errors.length ? errors.join("\n") : "no errors");

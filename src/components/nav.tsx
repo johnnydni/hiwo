@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { House, LayoutGrid, ShoppingBag, User } from "lucide-react";
 import { cx } from "./ui";
+import { Logo } from "@/components/logo";
 
 const items = [
   { href: "/", label: "Home", icon: House },
@@ -52,7 +53,10 @@ export function SideNav() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line px-5 py-8 lg:flex">
       <Link href="/" className="mb-10 block">
-        <span className="font-serif text-[36px] leading-none">hiwo</span>
+        <span className="flex items-end gap-2.5">
+          <Logo size={40} />
+          <span className="font-serif text-[36px] leading-none">hiwo</span>
+        </span>
         <span className="mt-1 block text-[13px] text-muted">hier wohne ich.</span>
       </Link>
       <ul className="space-y-1">

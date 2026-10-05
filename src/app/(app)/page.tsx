@@ -8,6 +8,7 @@ import { firstName, greeting, plural } from "@/lib/format";
 import { RoomCard } from "@/components/room-card";
 import { Photo } from "@/components/photo";
 import { buttonClass } from "@/components/ui";
+import { Logo } from "@/components/logo";
 
 export default function HomePage() {
   const { doc, me } = useApp();
@@ -22,7 +23,10 @@ export default function HomePage() {
   return (
     <div className="px-4 md:px-0">
       <header className="animate-fade-up pt-6 md:pt-10">
-        <p className="font-serif text-[30px] leading-none lg:hidden">hiwo</p>
+        <p className="flex items-end gap-2 font-serif text-[30px] leading-none lg:hidden">
+          <Logo size={32} />
+          hiwo
+        </p>
         <h1 className="mt-6 font-serif text-[30px] leading-tight lg:mt-0 md:text-[40px]">
           {greeting()}, {firstName(me.name)}.
         </h1>

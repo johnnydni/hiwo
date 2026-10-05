@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decodeInvite, readConnection, saveConnection } from "@/lib/connection";
 import { Splash } from "@/components/app-context";
+import { Logo } from "@/components/logo";
 
 export default function InvitePage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function InvitePage() {
   if (!invalid) return <Splash />;
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12 text-center">
+      <Logo size={72} className="mx-auto mb-4" />
       <p className="font-serif text-[56px] leading-none">hiwo</p>
       <p className="mt-1 text-muted">hier wohne ich.</p>
       <h1 className="mt-14 font-serif text-[30px]">Dieser Link ist unvollständig.</h1>
