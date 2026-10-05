@@ -160,7 +160,7 @@ const PAGES = {
 const only = process.env.SCREENS_ONLY?.split(",");
 const errors = [];
 for (const [vp, size] of Object.entries(VIEWPORTS)) {
-  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 2, locale: "de-DE" });
+  const ctx = await browser.newContext({ acceptDownloads: true, viewport: size, deviceScaleFactor: 2, locale: "de-DE" });
   await ctx.addInitScript(([repo, token]) => {
     localStorage.setItem("hiwo_connection", JSON.stringify({ repo, token, memberId: "m1" }));
     sessionStorage.setItem("hiwo_intro", "1"); // skip the splash animation
@@ -202,6 +202,43 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.mouse.up();
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/${vp}-vergleich.png` });
+  }
+  // image editor: put the armchair (background removed) into the variant photo
+  if (!only || only.includes("editor-produkt")) {
+    await page.goto(BASE + "/variante/?id=v0");
+    await page.waitForLoadState("networkidle");
+    await page.click("button[aria-label='Bild bearbeiten']");
+    await page.waitForSelector("canvas[aria-label='Zeichenfläche']");
+    await page.waitForTimeout(400);
+    await page.click("button[aria-label='Produkt']");
+    await page.waitForSelector("[aria-label='Produkt einfügen']");
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-picker.png` });
+    await page.click("button[aria-label='Sessel Salbei einfügen']");
+    await page.waitForSelector("input[aria-label='Hintergrund entfernen']");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt.png` });
+    // drag it to the left and mirror it
+    const b = await page.locator("canvas[aria-label='Zeichenfläche']").boundingBox();
+    const at = (x, y) => [b.x + b.width * x, b.y + b.height * y];
+    const drag = async (from, to) => {
+      await page.mouse.move(...from);
+      await page.mouse.down();
+      await page.mouse.move(...to, { steps: 10 });
+      await page.mouse.up();
+    };
+    await drag(at(0.5, 0.58), at(0.3, 0.62));
+    await page.click("button:has-text('Spiegeln')");
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt-bewegt.png` });
+    await page.click("button:has-text('Als Skizze sichern')");
+    await page.waitForSelector("[role=dialog] >> text=Version", { timeout: 15000 });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/${vp}-editor-gesichert.png` });
+    // export the sketch (no share sheet in headless Chromium, so it downloads)
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("[role=dialog] button:has-text('Herunterladen')")]);
+    const size = fs.statSync(await dl.path()).size;
+    if (!/^Wohnzimmer Japandi Skizze \d+\.jpg$/.test(dl.suggestedFilename()) || size < 10_000) errors.push(`${vp}: export ${dl.suggestedFilename()} ${size}B`);
   }
   await ctx.close();
 }
