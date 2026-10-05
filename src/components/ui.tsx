@@ -88,25 +88,33 @@ export function PageHeader({
   subtitle,
   back,
   action,
+  titleAction,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   back?: string;
   action?: ReactNode;
+  /** buttons on the title's line, right-aligned */
+  titleAction?: ReactNode;
 }) {
   return (
     <header className="animate-fade-up px-4 pt-6 pb-4 md:px-0 md:pt-10">
-      <div className="flex min-h-10 items-center justify-between">
-        {back ? (
-          <Link href={back} aria-label="Zurück" className="-ml-3 flex h-11 w-11 items-center justify-center rounded-full hover:bg-ink/5">
-            <ArrowLeft size={22} strokeWidth={1.6} />
-          </Link>
-        ) : (
-          <span />
-        )}
-        {action}
+      {(back || action || !titleAction) && (
+        <div className="flex min-h-10 items-center justify-between">
+          {back ? (
+            <Link href={back} aria-label="Zurück" className="-ml-3 flex h-11 w-11 items-center justify-center rounded-full hover:bg-ink/5">
+              <ArrowLeft size={22} strokeWidth={1.6} />
+            </Link>
+          ) : (
+            <span />
+          )}
+          {action}
+        </div>
+      )}
+      <div className="flex items-start justify-between gap-2">
+        <h1 className="min-w-0 font-serif text-[34px] leading-tight font-medium md:text-[42px]">{title}</h1>
+        {titleAction && <div className="-mr-3 flex shrink-0 items-center md:mt-1">{titleAction}</div>}
       </div>
-      <h1 className="font-serif text-[34px] leading-tight font-medium md:text-[42px]">{title}</h1>
       {subtitle && <p className="mt-1 text-[14px] text-muted">{subtitle}</p>}
     </header>
   );

@@ -203,42 +203,51 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/${vp}-vergleich.png` });
   }
-  // image editor: put the armchair (background removed) into the variant photo
-  if (!only || only.includes("editor-produkt")) {
-    await page.goto(BASE + "/variante/?id=v0");
+  // Lageplan: Illy's sketch (Flur, a small room, a slanted Bad, door ticks), then the magic wand
+  if (!only || only.includes("lageplan")) {
+    await page.goto(BASE + "/lageplan/");
     await page.waitForLoadState("networkidle");
-    await page.click("button[aria-label='Bild bearbeiten']");
-    await page.waitForSelector("canvas[aria-label='Zeichenfläche']");
     await page.waitForTimeout(400);
-    await page.click("button[aria-label='Produkt']");
-    await page.waitForSelector("[aria-label='Produkt einfügen']");
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-picker.png` });
-    await page.click("button[aria-label='Sessel Salbei einfügen']");
-    await page.waitForSelector("input[aria-label='Hintergrund entfernen']");
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt.png` });
-    // drag it to the left and mirror it
-    const b = await page.locator("canvas[aria-label='Zeichenfläche']").boundingBox();
-    const at = (x, y) => [b.x + b.width * x, b.y + b.height * y];
-    const drag = async (from, to) => {
-      await page.mouse.move(...from);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-leer.png` });
+    const box = await page.locator("[data-testid=plan]").boundingBox();
+    const k = Math.min(box.width / 320, box.height / 260) * 0.9;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 4;
+    const at = ([x, y]) => [box.x + 20 + x * k, box.y + 20 + y * k];
+    const draw = async (pts) => {
+      await page.mouse.move(...at(pts[0]));
       await page.mouse.down();
-      await page.mouse.move(...to, { steps: 10 });
+      for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        for (let s = 1; s <= 8; s++) await page.mouse.move(...at([a[0] + ((b[0] - a[0]) * s) / 8 + rnd(), a[1] + ((b[1] - a[1]) * s) / 8 + rnd()]));
+      }
       await page.mouse.up();
     };
-    await drag(at(0.5, 0.58), at(0.3, 0.62));
-    await page.click("button:has-text('Spiegeln')");
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-produkt-bewegt.png` });
-    await page.click("button:has-text('Als Skizze sichern')");
-    await page.waitForSelector("[role=dialog] >> text=Version", { timeout: 15000 });
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${OUT}/${vp}-editor-gesichert.png` });
-    // export the sketch (no share sheet in headless Chromium, so it downloads)
-    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("[role=dialog] button:has-text('Herunterladen')")]);
-    const size = fs.statSync(await dl.path()).size;
-    if (!/^Wohnzimmer Japandi Skizze \d+\.jpg$/.test(dl.suggestedFilename()) || size < 10_000) errors.push(`${vp}: export ${dl.suggestedFilename()} ${size}B`);
+    const loop = (pts) => [...pts, pts[0]];
+    await draw(loop([[10, 15], [125, 10], [122, 80], [12, 85]])); // Flur
+    await draw(loop([[108, 27], [170, 30], [168, 70], [110, 67]])); // small room
+    await draw(loop([[168, 70], [292, 68], [295, 150], [142, 147]])); // Bad, slanted
+    await draw([[25, 30], [25, 60]]); await draw([[25, 30], [40, 30]]); await draw([[25, 45], [36, 45]]); // "F"
+    await draw([[45, 82], [44, 100]]); await draw([[70, 83], [69, 101]]); // door ticks
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-skizze.png` });
+    await page.click("button:has-text('Zauberstab')");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-plan.png` });
+    // name the Flur and give it a size
+    await page.mouse.click(...at([60, 50]));
+    await page.waitForTimeout(400);
+    await page.click("[role=dialog] button:has-text('Flur')");
+    await page.fill("[role=dialog] input[inputmode=decimal]", "9");
+    await page.click("[role=dialog] button:has-text('Übernehmen')");
+    await page.waitForTimeout(1800);
+    await page.screenshot({ path: `${OUT}/${vp}-lageplan-m2.png` });
+    const plan = JSON.parse(gh.files.get("hiwo.json").toString()).plan;
+    if (!plan || plan.rooms.length !== 3 || plan.doors.length !== 1 || !plan.rooms.some((r) => r.room_id === "r5" && r.area_m2 === 9))
+      errors.push(`${vp}-lageplan: unexpected plan ${JSON.stringify(plan)}`);
+    // reset for the next viewport
+    const d = JSON.parse(gh.files.get("hiwo.json").toString());
+    delete d.plan;
+    gh.files.set("hiwo.json", Buffer.from(JSON.stringify(d)));
   }
   await ctx.close();
 }
