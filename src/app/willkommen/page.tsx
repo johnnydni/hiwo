@@ -56,7 +56,7 @@ function Willkommen() {
     try {
       if (!loaded) {
         await createDoc(conn, {
-          schema: 1,
+          schema: 2,
           home: {
             id: newId(),
             name: String(fd.get("home_name") ?? "").trim() || "Meine Wohnung",
@@ -67,10 +67,7 @@ function Willkommen() {
           members: [{ id, name, role: "owner", joined_at: now() }],
           rooms: [],
           photos: [],
-          furniture: [],
           shopping: [],
-          versions: [],
-          generations: [],
         });
       } else {
         await updateDoc(conn, loaded, `hiwo: ${name} ist dabei`, (d) => {

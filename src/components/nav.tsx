@@ -13,7 +13,7 @@ const items = [
 ];
 
 // Detail pages belong to the tab they were opened from.
-const ALIASES: Record<string, string[]> = { "/wohnung": ["/zimmer"], "/einkauf": ["/artikel"] };
+const ALIASES: Record<string, string[]> = { "/wohnung": ["/zimmer", "/variante"], "/einkauf": ["/artikel"] };
 
 function isActive(path: string, href: string) {
   if (href === "/") return path === "/";

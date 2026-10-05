@@ -19,9 +19,36 @@ function touchRoom(doc: HiwoDoc, roomId: string | null) {
   if (room) room.updated_at = now();
 }
 
+/** "" = Gesamte Wohnung, "<room>" = Zimmer, "<room>/<variant>" = eine Variante */
+export function parseTarget(value: string) {
+  const [room, variant] = value.split("/");
+  return { room_id: room || null, variant_id: variant || null };
+}
+
+export function targetValue(item: { room_id: string | null; variant_id: string | null }) {
+  return item.room_id ? (item.variant_id ? `${item.room_id}/${item.variant_id}` : item.room_id) : "";
+}
+
 export function useActions() {
   const { conn, me, doc, mutate } = useApp();
   const by = me.id;
+
+  async function upload(roomId: string, file: File) {
+    const { blob, width, height } = await prepareImage(file, 1800);
+    const id = newId();
+    const path = `fotos/${roomId}/${id}.jpg`;
+    const { sha } = await uploadPhoto(conn, path, blob, "hiwo: Foto hochgeladen");
+    return {
+      id,
+      room_id: roomId,
+      path,
+      sha,
+      width: width || null,
+      height: height || null,
+      created_by: by,
+      created_at: now(),
+    };
+  }
 
   return {
     // -- home & profile ------------------------------------------------------
@@ -49,8 +76,6 @@ export function useActions() {
         d.rooms.push({
           id,
           name: name.trim(),
-          cover_photo_id: null,
-          current_version_id: null,
           position: d.rooms.length,
           created_by: by,
           created_at: now(),
@@ -75,49 +100,51 @@ export function useActions() {
         const photoIds = new Set(d.photos.filter((p) => p.room_id === roomId).map((p) => p.id));
         d.rooms = d.rooms.filter((r) => r.id !== roomId);
         d.photos = d.photos.filter((p) => p.room_id !== roomId);
-        d.furniture = d.furniture.filter((f) => f.room_id !== roomId);
-        d.versions = d.versions.filter((v) => v.room_id !== roomId);
-        d.generations = d.generations.filter((g) => g.room_id !== roomId);
-        d.shopping.forEach((s) => s.room_id === roomId && (s.room_id = null));
+        // keep the shopping items, they just move to "Gesamte Wohnung"
+        d.shopping.forEach((s) => {
+          if (s.room_id === roomId) {
+            s.room_id = null;
+            s.variant_id = null;
+          }
+        });
         if (d.home.cover_photo_id && photoIds.has(d.home.cover_photo_id)) d.home.cover_photo_id = null;
       });
       // files last: if this fails, the doc is still consistent
       for (const p of photos) await removeFile(conn, p.path, p.sha, "hiwo: Foto gelöscht").catch(() => {});
     },
 
-    // -- photos --------------------------------------------------------------
-    addPhotos: async (roomId: string, files: File[]) => {
-      let failed = 0;
-      for (const file of files) {
-        try {
-          const { blob, width, height } = await prepareImage(file, 1800);
-          const id = newId();
-          const path = `fotos/${roomId}/${id}.jpg`;
-          const { sha } = await uploadPhoto(conn, path, blob, "hiwo: Foto hochgeladen");
-          await mutate("hiwo: Foto hinzugefügt", (d) => {
-            d.photos.push({
-              id,
-              room_id: roomId,
-              path,
-              sha,
-              width: width || null,
-              height: height || null,
-              created_by: by,
-              created_at: now(),
-            });
-            touchRoom(d, roomId);
-          });
-        } catch {
-          failed++;
-        }
-      }
-      return failed;
+    // -- photos: one base photo per room, any number of variants --------------
+    /** Sets (or replaces) the photo of how the room looks today. */
+    setBasePhoto: async (roomId: string, file: File) => {
+      const old = doc.photos.find((p) => p.room_id === roomId && p.kind === "base");
+      const photo = await upload(roomId, file);
+      await mutate(old ? "hiwo: Ausgangsfoto ersetzt" : "hiwo: Ausgangsfoto hinzugefügt", (d) => {
+        d.photos = d.photos.filter((p) => !(p.room_id === roomId && p.kind === "base"));
+        d.photos.push({ ...photo, kind: "base", name: null, note: null });
+        if (old && d.home.cover_photo_id === old.id) d.home.cover_photo_id = photo.id;
+        touchRoom(d, roomId);
+      });
+      if (old) await removeFile(conn, old.path, old.sha, "hiwo: altes Ausgangsfoto").catch(() => {});
     },
 
-    setRoomCover: (roomId: string, photoId: string) =>
-      mutate("hiwo: Titelbild gesetzt", (d) => {
-        const r = d.rooms.find((x) => x.id === roomId);
-        if (r) r.cover_photo_id = photoId;
+    /** Uploads a variant photo and returns its id. */
+    addVariant: async (roomId: string, file: File) => {
+      const photo = await upload(roomId, file);
+      await mutate("hiwo: Variante hinzugefügt", (d) => {
+        const n = d.photos.filter((p) => p.room_id === roomId && p.kind === "variant").length + 1;
+        d.photos.push({ ...photo, kind: "variant", name: `Variante ${n}`, note: null });
+        touchRoom(d, roomId);
+      });
+      return photo.id;
+    },
+
+    updateVariant: (id: string, fd: FormData) =>
+      mutate("hiwo: Variante bearbeitet", (d) => {
+        const v = d.photos.find((p) => p.id === id);
+        if (!v) return;
+        v.name = str(fd, "name") || v.name;
+        v.note = str(fd, "note") || null;
+        touchRoom(d, v.room_id);
       }),
 
     setHomeCover: (photoId: string) =>
@@ -128,44 +155,22 @@ export function useActions() {
     deletePhoto: async (photoId: string) => {
       const photo = doc.photos.find((p) => p.id === photoId);
       if (!photo) return;
-      await mutate("hiwo: Foto gelöscht", (d) => {
+      await mutate(photo.kind === "base" ? "hiwo: Ausgangsfoto gelöscht" : "hiwo: Variante gelöscht", (d) => {
         d.photos = d.photos.filter((p) => p.id !== photoId);
-        d.rooms.forEach((r) => r.cover_photo_id === photoId && (r.cover_photo_id = null));
+        // items of a deleted variant stay on the room's list
+        d.shopping.forEach((s) => s.variant_id === photoId && (s.variant_id = null));
         if (d.home.cover_photo_id === photoId) d.home.cover_photo_id = null;
         touchRoom(d, photo.room_id);
       });
       await removeFile(conn, photo.path, photo.sha, "hiwo: Foto gelöscht").catch(() => {});
     },
 
-    // -- furniture -----------------------------------------------------------
-    addFurniture: (roomId: string, name: string) =>
-      mutate(`hiwo: ${name.trim()} hinzugefügt`, (d) => {
-        d.furniture.push({
-          id: newId(),
-          room_id: roomId,
-          name: name.trim(),
-          note: null,
-          keep: true,
-          position: d.furniture.filter((f) => f.room_id === roomId).length,
-          created_by: by,
-          created_at: now(),
-        });
-        touchRoom(d, roomId);
-      }),
-
-    deleteFurniture: (id: string) =>
-      mutate("hiwo: Möbel entfernt", (d) => {
-        const f = d.furniture.find((x) => x.id === id);
-        d.furniture = d.furniture.filter((x) => x.id !== id);
-        if (f) touchRoom(d, f.room_id);
-      }),
-
     // -- shopping ------------------------------------------------------------
     addShoppingItem: (fd: FormData) =>
       mutate(`hiwo: ${str(fd, "name")} auf die Liste`, (d) => {
         d.shopping.push({
           id: newId(),
-          room_id: str(fd, "room_id") || null,
+          ...parseTarget(str(fd, "target")),
           name: str(fd, "name"),
           price_cents: parsePrice(str(fd, "price")),
           note: str(fd, "note") || null,
@@ -185,7 +190,7 @@ export function useActions() {
         const s = d.shopping.find((x) => x.id === id);
         if (!s) return;
         s.name = str(fd, "name") || s.name;
-        s.room_id = str(fd, "room_id") || null;
+        Object.assign(s, parseTarget(str(fd, "target")));
         s.price_cents = parsePrice(str(fd, "price"));
         s.note = str(fd, "note") || null;
         s.url = str(fd, "url") || null;

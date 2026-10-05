@@ -17,7 +17,7 @@ export default function HomePage() {
   const coverPath = homeCoverPath(doc);
 
   const recent = [...rooms].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
-  const photoCount = rooms.reduce((n, r) => n + r.photoCount, 0);
+  const variantCount = rooms.reduce((n, r) => n + r.variantCount, 0);
 
   return (
     <div className="px-4 md:px-0">
@@ -58,7 +58,7 @@ export default function HomePage() {
               : "Deine Einkaufsliste ist leer"}
           </TodayRow>
           <TodayRow href="/wohnung" icon={<Camera size={18} strokeWidth={1.6} />}>
-            {photoCount ? `${plural(photoCount, "Foto", "Fotos")} von deinem Zuhause` : "Noch keine Fotos gespeichert"}
+            {variantCount ? `${plural(variantCount, "Variante", "Varianten")} zum Vergleichen` : "Noch keine Varianten gespeichert"}
           </TodayRow>
           {recent[0] && (
             <TodayRow href={`/zimmer?id=${recent[0].id}`} icon={<Clock size={18} strokeWidth={1.6} />}>
@@ -81,7 +81,7 @@ export default function HomePage() {
         ) : (
           <div className="rounded-card bg-card p-6 text-center shadow-soft">
             <p className="font-serif text-[22px]">Noch keine Zimmer.</p>
-            <p className="mt-1 text-[14px] text-muted">Leg dein erstes Zimmer an und zeig hiwo, wie es aussieht.</p>
+            <p className="mt-1 text-[14px] text-muted">Leg dein erstes Zimmer an und fotografier, wie es jetzt aussieht.</p>
             <Link href="/wohnung?neu=1" className={buttonClass("primary", "mt-5")}>
               Zimmer hinzufügen
             </Link>

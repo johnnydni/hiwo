@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { useApp, useMemberName } from "@/components/app-context";
 import { formatPrice, relativeDay } from "@/lib/format";
+import { useTargetLabel } from "@/components/target-select";
 import { Avatar, EmptyState, PageHeader, buttonClass } from "@/components/ui";
 import { ItemActions, ItemImage } from "./item-actions";
 
@@ -29,6 +30,7 @@ function Item() {
   const itemId = useSearchParams().get("id") ?? "";
   const { doc } = useApp();
   const nameOf = useMemberName();
+  const targetLabel = useTargetLabel();
   const item = doc.shopping.find((s) => s.id === itemId);
 
   if (!item)
@@ -42,23 +44,29 @@ function Item() {
         }
       />
     );
-  const rooms = [...doc.rooms].sort((a, b) => a.position - b.position).map((r) => ({ id: r.id, name: r.name }));
-  const roomName = rooms.find((r) => r.id === item.room_id)?.name ?? "Gesamte Wohnung";
+  const forLabel = targetLabel(item);
+  const forHref = item.variant_id ? `/variante?id=${item.variant_id}` : item.room_id ? `/zimmer?id=${item.room_id}` : null;
   const creator = item.created_by ? nameOf(item.created_by) : null;
   const doneBy = item.done_by ? nameOf(item.done_by) : null;
 
   return (
     <div>
-      <PageHeader back="/einkauf" title="" />
+      <PageHeader back={forHref ?? "/einkauf"} title="" />
       <div className="-mt-6 px-4 md:px-0">
         <ItemImage itemId={item.id} path={item.image_path} />
         <div className="animate-fade-up mt-5">
           <h1 className="font-serif text-[34px] leading-tight">{item.name}</h1>
-          <p className="text-[13px] text-muted">{roomName}</p>
+          {forHref ? (
+            <Link href={forHref} className="text-[13px] text-muted underline-offset-2 hover:underline">
+              {forLabel}
+            </Link>
+          ) : (
+            <p className="text-[13px] text-muted">{forLabel}</p>
+          )}
           {item.price_cents != null && <p className="mt-3 text-[20px] font-semibold">{formatPrice(item.price_cents)}</p>}
         </div>
 
-        <ItemActions item={item} rooms={rooms} />
+        <ItemActions item={item} />
 
         {item.url && (
           <a

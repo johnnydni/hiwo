@@ -20,11 +20,38 @@ export type Loaded = { doc: HiwoDoc; sha: string };
 export async function loadDoc(c: Connection): Promise<Loaded | null> {
   const file = await getText(c, DOC_PATH);
   if (!file) return null;
-  const doc = JSON.parse(file.text) as HiwoDoc;
-  // tolerate files written by older versions
-  doc.versions ??= [];
-  doc.generations ??= [];
-  return { doc, sha: file.sha };
+  return { doc: migrate(JSON.parse(file.text)), sha: file.sha };
+}
+
+type V1Photo = { id: string; room_id: string; created_at: string; kind?: string; name?: string | null; note?: string | null };
+type V1Doc = { schema?: number; rooms: { id: string; cover_photo_id?: string | null }[]; photos: V1Photo[]; shopping: { variant_id?: string | null }[] };
+
+/**
+ * Schema 1 (first GitHub version) had many equal photos per room plus a
+ * furniture list and AI tables. Schema 2: one base photo per room, the other
+ * photos become variants. Written back on the next change.
+ */
+export function migrate(raw: unknown): HiwoDoc {
+  const d = raw as V1Doc & Record<string, unknown>;
+  if (d.schema === 2) return d as unknown as HiwoDoc;
+  for (const room of d.rooms) {
+    const photos = d.photos.filter((p) => p.room_id === room.id).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const base = photos.find((p) => p.id === room.cover_photo_id) ?? photos[0];
+    let n = 0;
+    for (const p of photos) {
+      p.kind = p === base ? "base" : "variant";
+      p.name = p === base ? null : `Variante ${++n}`;
+      p.note ??= null;
+    }
+    delete room.cover_photo_id;
+    delete (room as Record<string, unknown>).current_version_id;
+  }
+  for (const s of d.shopping) s.variant_id ??= null;
+  delete d.furniture;
+  delete d.versions;
+  delete d.generations;
+  d.schema = 2;
+  return d as unknown as HiwoDoc;
 }
 
 /**
