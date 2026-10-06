@@ -1,15 +1,16 @@
-// hiwo mark: an H whose crossbar is a roof, with the "i" (ich) standing under it and the sun as its dot.
+// hiwo mark: an H whose crossbar is a roof, with the "i" (ich) standing under it, the sun as its dot,
+// and a foot at the bottom right: someone standing there.
 export function Logo({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <svg
-      viewBox="104 14 202 354"
-      width={(size * 202) / 354}
+      viewBox="104 14 238 354"
+      width={(size * 238) / 354}
       height={size}
       className={className}
       aria-hidden="true"
     >
       <path
-        d="M122 82 V350 M122 232 L204 160 L288 232 M204 160 V112 M288 82 V350"
+        d="M122 82 V350 M122 232 L204 160 L288 232 M204 160 V112 M288 82 V350 H324"
         fill="none"
         stroke="currentColor"
         strokeWidth="32"
