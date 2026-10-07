@@ -331,7 +331,7 @@ const basket = {
 // shopping (furnishing list)
 await page.click("text=Gesamte Wohnung");
 const add = async (name, room, price) => {
-  await page.click("button:has-text('Artikel hinzufügen')");
+  await page.click("button[aria-label='Artikel hinzufügen']");
   await page.fill("[role=dialog] input[name=name]", name);
   if (room) await page.selectOption("select[name=target]", { label: room });
   if (price) {
@@ -351,6 +351,11 @@ await page.locator("li:has-text('Pflanzen') button[aria-label='Als erledigt mark
 await page.waitForTimeout(800);
 await page.click("text=Nach Zimmer");
 await shot("08-shopping-room");
+// an empty room still offers the floating plus
+await page.click("button:has-text('Badezimmer')");
+await page.waitForSelector("text=in diesem Zimmer");
+const emptyRoomHasPlus = await page.isVisible("button[aria-label='Artikel hinzufügen']");
+await page.screenshot({ path: `${OUT}/08b-shopping-room-empty.png` });
 await page.click("text=Gesamte Wohnung");
 await page.click("li:has-text('Stehlampe') a");
 await page.waitForURL(/\/artikel\/?\?id=/);
@@ -393,7 +398,7 @@ await p2.goto(`${BASE}/einkauf`);
 await page.goto(`${BASE}/einkauf`);
 await p2.click("text=Gesamte Wohnung");
 await page.click("text=Gesamte Wohnung");
-await page.click("button:has-text('Artikel hinzufügen')");
+await page.click("button[aria-label='Artikel hinzufügen']");
 await page.fill("input[name=name]", "Kerzen");
 const conflictsBefore = gh.stats.conflicts;
 await Promise.all([
@@ -471,6 +476,7 @@ const summary = {
   keyLeftInUrl,
   concurrent,
   basket,
+  emptyRoomHasPlus,
   reorder,
   sketchCheck,
   replaceCheck,

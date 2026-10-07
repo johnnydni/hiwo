@@ -49,7 +49,7 @@ export function ShoppingList({
   const done = visible.filter((i) => i.status === "done");
 
   const groups = useMemo(() => {
-    if (mode === "room") return [{ key: room ?? "", title: null as string | null, items: open }];
+    if (mode === "room") return [{ key: room ?? "", title: null as string | null, items: open }].filter((x) => x.items.length);
     const g = [{ key: "home", title: "Gesamt", items: open.filter((i) => !i.room_id) }];
     for (const r of rooms) g.push({ key: r.id, title: r.name, items: open.filter((i) => i.room_id === r.id) });
     return g.filter((x) => x.items.length);
@@ -90,8 +90,8 @@ export function ShoppingList({
 
       <div className={cx("space-y-7", mode === "room" && "mt-6")}>
         {groups.length === 0 && !done.length && (
-          <EmptyState title="Alles da." action={<Button onClick={() => setAdding(true)}><Plus size={18} /> Artikel hinzufügen</Button>}>
-            Was fehlt noch in deinem Zuhause? Setz es auf die Liste, dann seht ihr es beide.
+          <EmptyState title="Alles da.">
+            Was fehlt noch {mode === "room" ? "in diesem Zimmer" : "in deinem Zuhause"}? Mit dem Plus unten rechts setzt du es auf die Liste, dann seht ihr es beide.
           </EmptyState>
         )}
         {groups.map((g) => (
@@ -121,18 +121,17 @@ export function ShoppingList({
         )}
       </div>
 
-      {(open.length > 0 || done.length > 0) && (
-        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] mt-8 flex items-center gap-3 lg:bottom-6">
-          <Button className="flex-1 shadow-soft" onClick={() => setAdding(true)}>
-            <Plus size={18} /> Artikel hinzufügen
-          </Button>
-          {total > 0 && (
-            <span className="rounded-button bg-card px-4 py-3 text-[13px] text-muted shadow-soft">
-              {formatPrice(total)}
-            </span>
-          )}
-        </div>
-      )}
+      {total > 0 && <p className="mt-3 px-1 text-[13px] text-muted">Noch offen: {formatPrice(total)}</p>}
+      {/* room for the floating button below the last row */}
+      <div className="h-20" />
+
+      <button
+        onClick={() => setAdding(true)}
+        aria-label="Artikel hinzufügen"
+        className="animate-fade-up fixed right-5 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-soft transition hover:bg-ink/90 active:scale-95 lg:right-10 lg:bottom-8"
+      >
+        <Plus size={26} strokeWidth={1.8} />
+      </button>
 
       <AddItemSheet
         open={adding}
