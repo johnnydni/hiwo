@@ -76,6 +76,24 @@ export type ShoppingItem = {
 };
 
 /**
+ * Everyday shopping in the Einkaufswagen (Lebensmittel, Drogerie, …), apart
+ * from the furnishing list. `category` stays null until it is sorted.
+ */
+export type GroceryItem = {
+  id: string;
+  name: string;
+  /** free text, e.g. "500 g", "2", "1 Packung" */
+  amount: string | null;
+  /** id from lib/groceries CATEGORIES */
+  category: string | null;
+  status: "open" | "done";
+  created_by: string | null;
+  done_by: string | null;
+  done_at: string | null;
+  created_at: string;
+};
+
+/**
  * A drawn-on copy of a photo (Ausgangsfoto, Variante or Produktfoto), saved
  * from the image editor. The original stays untouched; every save is a new
  * sketch, so the list doubles as version history.
@@ -132,4 +150,8 @@ export type HiwoDoc = {
   sketches?: Sketch[];
   /** Lageplan; added later */
   plan?: Plan;
+  /** Einkaufswagen; added later */
+  groceries?: GroceryItem[];
+  /** normalized name → category, what was confirmed in the sorting assistant */
+  grocery_words?: Record<string, string>;
 };

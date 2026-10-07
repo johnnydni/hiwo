@@ -14,20 +14,22 @@ import { Button, EmptyState, Input, Label, Textarea, cx } from "@/components/ui"
 type Item = ShoppingItem;
 type Room = { id: string; name: string };
 
+/** Furnishing list, for the whole home ("all") or one room at a time. */
 export function ShoppingList({
   items,
   rooms,
+  mode,
   initialRoom,
   initiallyAdding,
 }: {
   items: Item[];
   rooms: Room[];
+  mode: "all" | "room";
   initialRoom: string | null;
   initiallyAdding: boolean;
 }) {
   const { doc } = useApp();
   const { setShoppingDone } = useActions();
-  const [mode, setMode] = useState<"all" | "room">(initialRoom ? "room" : "all");
   const [room, setRoom] = useState<string | null>(initialRoom ?? rooms[0]?.id ?? null);
   const [adding, setAdding] = useState(initiallyAdding);
   const [showDone, setShowDone] = useState(false);
@@ -64,21 +66,9 @@ export function ShoppingList({
       .join(" · ");
 
   return (
-    <div className="px-4 md:px-0">
-      <div className="inline-flex rounded-full bg-line/70 p-1 text-[13px]">
-        {(["all", "room"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={cx("rounded-full px-4 py-2 transition", mode === m ? "bg-ink text-white" : "text-ink/70")}
-          >
-            {m === "all" ? "Gesamte Wohnung" : "Nach Zimmer"}
-          </button>
-        ))}
-      </div>
-
+    <div>
       {mode === "room" && (
-        <div className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
           {rooms.length ? (
             rooms.map((r) => (
               <button
@@ -98,7 +88,7 @@ export function ShoppingList({
         </div>
       )}
 
-      <div className="mt-6 space-y-7">
+      <div className={cx("space-y-7", mode === "room" && "mt-6")}>
         {groups.length === 0 && !done.length && (
           <EmptyState title="Alles da." action={<Button onClick={() => setAdding(true)}><Plus size={18} /> Artikel hinzufügen</Button>}>
             Was fehlt noch in deinem Zuhause? Setz es auf die Liste, dann seht ihr es beide.

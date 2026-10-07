@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { ShoppingCart } from "lucide-react";
 import { useApp } from "@/components/app-context";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, cx } from "@/components/ui";
+import { GroceryCart } from "./grocery-cart";
 import { ShoppingList } from "./shopping-list";
 
 export default function EinkaufPage() {
@@ -14,21 +16,53 @@ export default function EinkaufPage() {
   );
 }
 
+type View = "cart" | "all" | "room";
+
 function Einkauf() {
   const { doc } = useApp();
   const params = useSearchParams();
+  const initialRoom = params.get("zimmer");
+  // ?neu=1 opens the add sheet once, not again on every switch back
+  const [initiallyAdding, setInitiallyAdding] = useState(params.get("neu") === "1");
+  // the Einkaufswagen is the start view; links into a room's or the furnishing list keep theirs
+  const [view, setView] = useState<View>(initialRoom ? "room" : initiallyAdding ? "all" : "cart");
   const rooms = [...doc.rooms]
     .sort((a, b) => a.position - b.position)
     .map((r) => ({ id: r.id, name: r.name }));
   return (
     <div className="max-w-3xl">
       <PageHeader title="Einkauf" subtitle={doc.home.name} />
-      <ShoppingList
-        items={doc.shopping}
-        rooms={rooms}
-        initialRoom={params.get("zimmer")}
-        initiallyAdding={params.get("neu") === "1"}
-      />
+      <div className="px-4 md:px-0">
+        <div className="mb-5 inline-flex rounded-full bg-line/70 p-1 text-[13px]">
+          {(["cart", "all", "room"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => (setView(m), setInitiallyAdding(false))}
+              aria-label={m === "cart" ? "Einkaufswagen" : undefined}
+              title={m === "cart" ? "Einkaufswagen: Lebensmittel, Drogerie, Haushalt" : undefined}
+              aria-pressed={view === m}
+              className={cx(
+                "flex items-center rounded-full py-2 transition",
+                m === "cart" ? "px-3.5" : "px-4",
+                view === m ? "bg-ink text-white" : "text-ink/70",
+              )}
+            >
+              {m === "cart" ? <ShoppingCart size={17} strokeWidth={1.8} /> : m === "all" ? "Gesamte Wohnung" : "Nach Zimmer"}
+            </button>
+          ))}
+        </div>
+        {view === "cart" ? (
+          <GroceryCart items={doc.groceries ?? []} learned={doc.grocery_words ?? {}} />
+        ) : (
+          <ShoppingList
+            items={doc.shopping}
+            rooms={rooms}
+            mode={view}
+            initialRoom={initialRoom}
+            initiallyAdding={initiallyAdding}
+          />
+        )}
+      </div>
     </div>
   );
 }
