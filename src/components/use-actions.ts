@@ -7,8 +7,9 @@ import { parsePrice } from "@/lib/format";
 import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
+import { normalize as normalizeWord } from "@/lib/groceries";
 import { removeFile, uploadPhoto } from "@/lib/store";
-import type { CoverArtId, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
+import type { CoverArtId, GroceryItem, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
   const v = fd.get(key);
@@ -257,6 +258,64 @@ export function useActions() {
       await removeFile(conn, photo.path, photo.sha, "hiwo: Foto gelöscht").catch(() => {});
       await removeSketchFiles(sketches);
     },
+
+    // -- Einkaufswagen -------------------------------------------------------
+    /** Several entries at once ("Milch, 6 Eier") are one commit. */
+    addGroceries: (entries: { id?: string; name: string; amount: string | null }[]) =>
+      mutate(`hiwo: ${entries.map((e) => e.name).join(", ")} in den Einkaufswagen`, (d) => {
+        d.groceries ??= [];
+        for (const e of entries)
+          d.groceries.push({
+            id: e.id ?? newId(),
+            name: e.name,
+            amount: e.amount,
+            category: null,
+            status: "open",
+            created_by: by,
+            done_by: null,
+            done_at: null,
+            created_at: now(),
+          });
+      }),
+
+    updateGrocery: (id: string, change: Partial<Pick<GroceryItem, "name" | "amount" | "category">>) =>
+      mutate("hiwo: Einkauf bearbeitet", (d) => {
+        const g = d.groceries?.find((x) => x.id === id);
+        if (!g) return;
+        Object.assign(g, change);
+        if (change.category && g.name) (d.grocery_words ??= {})[normalizeWord(g.name)] = change.category;
+      }),
+
+    setGroceryDone: (id: string, done: boolean) =>
+      mutate(done ? "hiwo: Eingekauft" : "hiwo: Wieder auf die Einkaufsliste", (d) => {
+        const g = d.groceries?.find((x) => x.id === id);
+        if (!g) return;
+        g.status = done ? "done" : "open";
+        g.done_by = done ? by : null;
+        g.done_at = done ? now() : null;
+      }),
+
+    deleteGrocery: (id: string) =>
+      mutate("hiwo: Einkauf gelöscht", (d) => {
+        d.groceries = (d.groceries ?? []).filter((g) => g.id !== id);
+      }),
+
+    clearDoneGroceries: () =>
+      mutate("hiwo: Erledigte Einkäufe geleert", (d) => {
+        d.groceries = (d.groceries ?? []).filter((g) => g.status !== "done");
+      }),
+
+    /** Result of the sorting assistant: categories for many items, remembered for next time. */
+    categorizeGroceries: (choices: Record<string, string>) =>
+      mutate("hiwo: Einkäufe sortiert", (d) => {
+        d.grocery_words ??= {};
+        for (const g of d.groceries ?? []) {
+          const c = choices[g.id];
+          if (!c) continue;
+          g.category = c;
+          d.grocery_words[normalizeWord(g.name)] = c;
+        }
+      }),
 
     // -- shopping ------------------------------------------------------------
     /** A link pasted as the name works too: the name then comes from the shop page. */

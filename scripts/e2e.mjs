@@ -278,8 +278,38 @@ await shot("06c-rooms-title");
   await shot("06e-rooms-art");
 }
 
-// shopping
+// Einkaufswagen: start view of Einkauf; several entries with amounts at once, then the sorting assistant
 await page.goto(`${BASE}/einkauf`);
+await page.fill("input[aria-label='Einkauf eintragen']", "Milch, 6 Eier, 500 g Mehl, Zahnpasta, Äpfel, Quinoa-Bratlinge");
+await page.keyboard.press("Enter");
+await page.waitForSelector("text=Einkäufe sortieren");
+for (let t = 0; t < 50 && (doc().groceries ?? []).length < 6; t++) await page.waitForTimeout(200);
+await shot("07a-cart");
+await page.click("text=Einkäufe sortieren");
+await page.click("button:has-text('Vorschläge übernehmen')");
+await page.waitForSelector("text=Kenne ich noch nicht");
+await shot("07b-cart-sort");
+await page.click("[role=dialog] button:has-text('Tiefkühl')");
+await page.waitForSelector("[role=dialog]", { state: "detached" });
+for (let t = 0; t < 50 && (doc().groceries ?? []).some((g) => !g.category); t++) await page.waitForTimeout(200);
+await page.click("button[aria-pressed]:has-text('🍎 Obst')");
+const cartFilterRows = await page.locator("main li").count();
+await page.click("button[aria-pressed]:has-text('Alle')");
+await page.locator("li:has-text('Milch') button[aria-label='Als eingekauft markieren']").click();
+for (let t = 0; t < 50 && doc().groceries.find((g) => g.name === "Milch")?.status !== "done"; t++) await page.waitForTimeout(200);
+await shot("07c-cart-sorted");
+const g = doc().groceries;
+const cart = {
+  count: g.length,
+  amounts: Object.fromEntries(g.filter((x) => x.amount).map((x) => [x.name, x.amount])),
+  categories: Object.fromEntries(g.map((x) => [x.name, x.category])),
+  learnedUnknown: doc().grocery_words?.["quinoa-bratlinge"],
+  obstFilterRows: cartFilterRows,
+  milchDone: g.find((x) => x.name === "Milch")?.status,
+};
+
+// shopping (furnishing list)
+await page.click("text=Gesamte Wohnung");
 const add = async (name, room, price) => {
   await page.click("button:has-text('Artikel hinzufügen')");
   await page.fill("[role=dialog] input[name=name]", name);
@@ -341,6 +371,8 @@ const sawHome = await p2.waitForSelector("text=Meine Wohnung").then(() => true, 
 // both edit at the same moment: Nadin ticks an item while Illy (on a stale copy) adds one
 await p2.goto(`${BASE}/einkauf`);
 await page.goto(`${BASE}/einkauf`);
+await p2.click("text=Gesamte Wohnung");
+await page.click("text=Gesamte Wohnung");
 await page.click("button:has-text('Artikel hinzufügen')");
 await page.fill("input[name=name]", "Kerzen");
 const conflictsBefore = gh.stats.conflicts;
@@ -358,6 +390,7 @@ const concurrent = {
   doneBy: d.members.find((m) => m.id === d.shopping.find((s) => s.name === "Nachttisch")?.done_by)?.name,
 };
 await page.reload();
+await page.click("text=Gesamte Wohnung");
 await page.waitForSelector("li:has-text('Kerzen')");
 await shot("18-after-concurrent");
 
@@ -417,6 +450,7 @@ const summary = {
   sawHome,
   keyLeftInUrl,
   concurrent,
+  cart,
   reorder,
   sketchCheck,
   replaceCheck,
