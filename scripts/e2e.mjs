@@ -278,34 +278,51 @@ await shot("06c-rooms-title");
   await shot("06e-rooms-art");
 }
 
-// Einkaufswagen: start view of Einkauf; several entries with amounts at once, then the sorting assistant
+// Einkaufskorb: start view of Einkauf; several entries with amounts at once,
+// known words sorted in right away, the assistant only for unknown ones
 await page.goto(`${BASE}/einkauf`);
+const groceries = () => doc().groceries ?? [];
 await page.fill("input[aria-label='Einkauf eintragen']", "Milch, 6 Eier, 500 g Mehl, Zahnpasta, Äpfel, Quinoa-Bratlinge");
 await page.keyboard.press("Enter");
 await page.waitForSelector("text=Einkäufe sortieren");
-for (let t = 0; t < 50 && (doc().groceries ?? []).length < 6; t++) await page.waitForTimeout(200);
-await shot("07a-cart");
+for (let t = 0; t < 50 && groceries().length < 6; t++) await page.waitForTimeout(200);
+// typing searches the catalogue: "Bana" offers Bananen
+await page.fill("input[aria-label='Einkauf eintragen']", "Bana");
+await shot("07a-basket-search");
+await page.click("button[aria-label='Bananen in den Korb']");
+for (let t = 0; t < 50 && !groceries().some((g) => g.name === "Bananen"); t++) await page.waitForTimeout(200);
+await shot("07b-basket");
 await page.click("text=Einkäufe sortieren");
-await page.click("button:has-text('Vorschläge übernehmen')");
 await page.waitForSelector("text=Kenne ich noch nicht");
-await shot("07b-cart-sort");
 await page.click("[role=dialog] button:has-text('Tiefkühl')");
 await page.waitForSelector("[role=dialog]", { state: "detached" });
-for (let t = 0; t < 50 && (doc().groceries ?? []).some((g) => !g.category); t++) await page.waitForTimeout(200);
+for (let t = 0; t < 50 && groceries().some((g) => !g.category); t++) await page.waitForTimeout(200);
+// hold (here: right click) a tile to change its amount
+await page.click("button[aria-label='Eier: gekauft']", { button: "right" });
+await page.fill("[role=dialog] input[name=amount]", "10");
+await page.click("[role=dialog] button:has-text('Speichern')");
+await page.waitForSelector("[role=dialog]", { state: "detached" });
 await page.click("button[aria-pressed]:has-text('🍎 Obst')");
-const cartFilterRows = await page.locator("main li").count();
+const basketObstTiles = await page.locator("button[aria-label$=': gekauft']").count();
 await page.click("button[aria-pressed]:has-text('Alle')");
-await page.locator("li:has-text('Milch') button[aria-label='Als eingekauft markieren']").click();
-for (let t = 0; t < 50 && doc().groceries.find((g) => g.name === "Milch")?.status !== "done"; t++) await page.waitForTimeout(200);
-await shot("07c-cart-sorted");
-const g = doc().groceries;
-const cart = {
+await page.click("button[aria-label='Milch: gekauft']");
+for (let t = 0; t < 50 && groceries().find((g) => g.name === "Milch")?.status !== "done"; t++) await page.waitForTimeout(200);
+await page.waitForTimeout(600);
+await shot("07c-basket-bought");
+// bought things come back from "Zuletzt gekauft" without a duplicate
+await page.click("button[aria-label='Milch wieder in den Korb']");
+for (let t = 0; t < 50 && groceries().find((g) => g.name === "Milch")?.status !== "open"; t++) await page.waitForTimeout(200);
+await page.click("button:has-text('Obst'):has(svg)");
+await page.waitForTimeout(300);
+await shot("07d-basket-catalog");
+const g = groceries();
+const basket = {
   count: g.length,
   amounts: Object.fromEntries(g.filter((x) => x.amount).map((x) => [x.name, x.amount])),
   categories: Object.fromEntries(g.map((x) => [x.name, x.category])),
   learnedUnknown: doc().grocery_words?.["quinoa-bratlinge"],
-  obstFilterRows: cartFilterRows,
-  milchDone: g.find((x) => x.name === "Milch")?.status,
+  obstFilterTiles: basketObstTiles,
+  milchBackOpen: g.filter((x) => x.name === "Milch").map((x) => x.status),
 };
 
 // shopping (furnishing list)
@@ -450,7 +467,7 @@ const summary = {
   sawHome,
   keyLeftInUrl,
   concurrent,
-  cart,
+  basket,
   reorder,
   sketchCheck,
   replaceCheck,

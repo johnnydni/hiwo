@@ -7,7 +7,7 @@ import { parsePrice } from "@/lib/format";
 import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
-import { normalize as normalizeWord } from "@/lib/groceries";
+import { normalize as normalizeWord, pruneRecent, putEntries } from "@/lib/groceries";
 import { removeFile, uploadPhoto } from "@/lib/store";
 import type { CoverArtId, GroceryItem, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
 
@@ -259,23 +259,11 @@ export function useActions() {
       await removeSketchFiles(sketches);
     },
 
-    // -- Einkaufswagen -------------------------------------------------------
-    /** Several entries at once ("Milch, 6 Eier") are one commit. */
-    addGroceries: (entries: { id?: string; name: string; amount: string | null }[]) =>
-      mutate(`hiwo: ${entries.map((e) => e.name).join(", ")} in den Einkaufswagen`, (d) => {
-        d.groceries ??= [];
-        for (const e of entries)
-          d.groceries.push({
-            id: e.id ?? newId(),
-            name: e.name,
-            amount: e.amount,
-            category: null,
-            status: "open",
-            created_by: by,
-            done_by: null,
-            done_at: null,
-            created_at: now(),
-          });
+    // -- Einkaufskorb --------------------------------------------------------
+    /** Several entries at once ("Milch, 6 Eier") are one commit; see putEntries. */
+    putGroceries: (entries: { id: string; name: string; amount: string | null }[], at: string) =>
+      mutate(`hiwo: ${entries.map((e) => e.name).join(", ")} in den Einkaufskorb`, (d) => {
+        d.groceries = putEntries(d.groceries ?? [], entries, d.grocery_words ?? {}, by, at);
       }),
 
     updateGrocery: (id: string, change: Partial<Pick<GroceryItem, "name" | "amount" | "category">>) =>
@@ -287,22 +275,18 @@ export function useActions() {
       }),
 
     setGroceryDone: (id: string, done: boolean) =>
-      mutate(done ? "hiwo: Eingekauft" : "hiwo: Wieder auf die Einkaufsliste", (d) => {
+      mutate(done ? "hiwo: Eingekauft" : "hiwo: Wieder in den Einkaufskorb", (d) => {
         const g = d.groceries?.find((x) => x.id === id);
         if (!g) return;
         g.status = done ? "done" : "open";
         g.done_by = done ? by : null;
         g.done_at = done ? now() : null;
+        d.groceries = pruneRecent(d.groceries!);
       }),
 
     deleteGrocery: (id: string) =>
       mutate("hiwo: Einkauf gelöscht", (d) => {
         d.groceries = (d.groceries ?? []).filter((g) => g.id !== id);
-      }),
-
-    clearDoneGroceries: () =>
-      mutate("hiwo: Erledigte Einkäufe geleert", (d) => {
-        d.groceries = (d.groceries ?? []).filter((g) => g.status !== "done");
       }),
 
     /** Result of the sorting assistant: categories for many items, remembered for next time. */

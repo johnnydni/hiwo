@@ -76,7 +76,7 @@ export type ShoppingItem = {
 };
 
 /**
- * Everyday shopping in the Einkaufswagen (Lebensmittel, Drogerie, …), apart
+ * Everyday shopping in the Einkaufskorb (Lebensmittel, Drogerie, …), apart
  * from the furnishing list. `category` stays null until it is sorted.
  */
 export type GroceryItem = {
@@ -150,7 +150,7 @@ export type HiwoDoc = {
   sketches?: Sketch[];
   /** Lageplan; added later */
   plan?: Plan;
-  /** Einkaufswagen; added later */
+  /** Einkaufskorb; added later */
   groceries?: GroceryItem[];
   /** normalized name → category, what was confirmed in the sorting assistant */
   grocery_words?: Record<string, string>;
