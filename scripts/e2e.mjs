@@ -310,6 +310,15 @@ const undoToast = await page.waitForSelector("text=Milch gekauft").then(() => tr
 for (let t = 0; t < 50 && groceries().find((g) => g.name === "Milch")?.status !== "done"; t++) await page.waitForTimeout(200);
 await page.waitForTimeout(600);
 await shot("07c-basket-bought");
+// the eye hides "Zuletzt gekauft" and remembers it on this device
+await page.click("button[aria-label='Zuletzt gekauft ausblenden']");
+const recentHidden = (await page.locator("button[aria-label$='wieder in den Korb']").count()) === 0;
+await page.reload();
+await page.waitForSelector("button[aria-label='Zuletzt gekauft einblenden']");
+const recentStaysHidden = (await page.locator("button[aria-label$='wieder in den Korb']").count()) === 0;
+await shot("07c2-basket-recent-hidden");
+await page.click("button[aria-label='Zuletzt gekauft einblenden']");
+const recentShownAgain = (await page.locator("button[aria-label$='wieder in den Korb']").count()) > 0;
 // bought things come back from "Zuletzt gekauft" without a duplicate
 await page.click("button[aria-label='Milch wieder in den Korb']");
 for (let t = 0; t < 50 && groceries().find((g) => g.name === "Milch")?.status !== "open"; t++) await page.waitForTimeout(200);
@@ -325,6 +334,9 @@ const basket = {
   obstFilterTiles: basketObstTiles,
   undoToast,
   iconsLoaded: await page.evaluate(() => [...document.images].filter((i) => i.src.includes("einkauf-icons")).every((i) => i.complete && i.naturalWidth > 0)),
+  recentHidden,
+  recentStaysHidden,
+  recentShownAgain,
   milchBackOpen: g.filter((x) => x.name === "Milch").map((x) => x.status),
 };
 
