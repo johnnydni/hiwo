@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 import { ChevronDown, ListChecks, Plus, Search, Trash2, X } from "lucide-react";
 import { useActions } from "@/components/use-actions";
+import { GroceryIcon } from "@/components/grocery-icon";
 import { Sheet } from "@/components/sheet";
 import { Button, Input, Label, cx } from "@/components/ui";
 import { newId, now } from "@/lib/id";
@@ -46,6 +47,13 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
   const [editing, setEditing] = useState<GroceryItem | null>(null);
   const [sorting, setSorting] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
+  // "Milch gekauft · Rückgängig", for a mis-tap
+  const [undo, setUndo] = useState<GroceryItem | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 4000);
+    return () => clearTimeout(t);
+  }, [undo]);
 
   // tiles change at once; the commit to GitHub follows
   const [list, apply] = useOptimistic(items, (state, c: Change) => {
@@ -72,8 +80,8 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
     .map((g) => ({ ...g, items: visible.filter((i) => catOf(i) === g.id).sort(byName) }))
     .filter((g) => g.items.length);
   const catChips = [
-    ...(unsorted.length ? [{ id: UNSORTED, label: "Unsortiert", n: unsorted.length }] : []),
-    ...CATEGORIES.map((c) => ({ id: c.id as string, label: `${c.icon} ${c.name}`, n: open.filter((i) => i.category === c.id).length })),
+    ...(unsorted.length ? [{ id: UNSORTED, label: "Unsortiert", icon: null as string | null, n: unsorted.length }] : []),
+    ...CATEGORIES.map((c) => ({ id: c.id as string, label: c.name, icon: c.icon as string | null, n: open.filter((i) => i.category === c.id).length })),
   ].filter((c) => c.n);
   const letters = [...new Set(open.filter((i) => !cat || catOf(i) === cat).map((i) => initial(i.name)))].sort();
 
@@ -91,11 +99,13 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
     setText("");
     input.current?.focus();
   };
-  const setDone = (it: GroceryItem, done: boolean) =>
+  const setDone = (it: GroceryItem, done: boolean) => {
+    setUndo(done ? it : null);
     start(async () => {
       apply({ type: "patch", ids: { [it.id]: { status: done ? "done" : "open", done_at: done ? now() : null } } });
       await actions.setGroceryDone(it.id, done).catch(() => {});
     });
+  };
 
   // typing: the typed entry itself plus matching catalogue products, Bring!-style
   const typed = text.includes(",") ? null : parseEntry(text);
@@ -199,6 +209,7 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
                   </Chip>
                   {catChips.map((c) => (
                     <Chip key={c.id} active={cat === c.id} onClick={() => (setCat(cat === c.id ? null : c.id), setLetter(null))}>
+                      {c.icon && <GroceryIcon icon={c.icon} size={18} />}
                       {c.label} {c.n}
                     </Chip>
                   ))}
@@ -237,13 +248,17 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
             {groups.map((g) => (
               <section key={g.id}>
                 <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-medium tracking-wide text-muted uppercase">
-                  {g.icon && <span className="text-[15px] normal-case">{g.icon}</span>}
+                  {g.icon && <GroceryIcon icon={g.icon} size={20} />}
                   {g.name}
                 </h2>
                 <TileGrid>{g.items.map(tile)}</TileGrid>
               </section>
             ))}
-            {open.length > 0 && <p className="px-1 text-[12px] text-faint">Antippen: gekauft. Gedrückt halten: Menge oder Kategorie ändern.</p>}
+            {open.length > 0 && (
+              <p className="px-1 text-[12px] text-faint">
+                {open.length === 1 ? "1 Artikel" : `${open.length} Artikel`} im Korb. Antippen: gekauft. Gedrückt halten: Menge oder Kategorie ändern.
+              </p>
+            )}
 
             {recent.length > 0 && (
               <section>
@@ -262,7 +277,7 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
                       aria-expanded={openCat === c.id}
                       className="flex min-h-12 w-full items-center gap-3 text-left text-[15px]"
                     >
-                      <span className="text-[20px] leading-none">{c.icon}</span>
+                      <GroceryIcon icon={c.icon} size={26} />
                       <span className="flex-1">{c.name}</span>
                       <ChevronDown size={18} strokeWidth={1.6} className={cx("text-faint transition", openCat === c.id && "rotate-180")} />
                     </button>
@@ -289,9 +304,29 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
                   </div>
                 ))}
               </div>
+              <p className="mt-2 px-1 text-[11px] text-faint">
+                Grafiken:{" "}
+                <a href="https://openmoji.org" target="_blank" rel="noreferrer" className="underline">
+                  OpenMoji
+                </a>
+                , CC BY-SA 4.0
+              </p>
             </section>
           </div>
         </>
+      )}
+
+      {undo && (
+        <div
+          key={undo.id}
+          role="status"
+          className="animate-fade-up fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-sm items-center gap-3 rounded-button bg-ink py-2 pr-2 pl-4 text-[14px] text-white shadow-soft lg:bottom-6"
+        >
+          <span className="min-w-0 flex-1 truncate">{undo.name} gekauft</span>
+          <button onClick={() => setDone(undo, false)} className="h-10 shrink-0 rounded-button px-3 font-medium hover:bg-white/10">
+            Rückgängig
+          </button>
+        </div>
       )}
 
       <EditSheet
@@ -403,8 +438,8 @@ function Tile({
       )}
     >
       {fresh && <Plus size={14} strokeWidth={2} className="absolute top-2 right-2 text-muted" />}
-      <span className={cx("flex h-9 items-center text-[30px] leading-none", !icon && "font-serif text-[30px]", !icon && !active && "text-muted")} aria-hidden>
-        {icon ?? initial(name)}
+      <span className={cx("flex h-11 items-center font-serif text-[32px] leading-none", !icon && !active && "text-muted")} aria-hidden>
+        {icon ? <GroceryIcon icon={icon} size={40} /> : initial(name)}
       </span>
       <span
         className={cx("line-clamp-2 w-full leading-tight font-medium break-words hyphens-auto", name.length > 10 ? "text-[12px]" : "text-[13px]")}
@@ -423,7 +458,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={active}
       className={cx(
-        "shrink-0 rounded-full border px-3.5 py-2 text-[13px] whitespace-nowrap transition",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] whitespace-nowrap transition",
         active ? "border-ink bg-card" : "border-line text-muted",
       )}
     >
@@ -454,7 +489,7 @@ function CategoryGrid({
             value === c.id ? "border-ink bg-ink text-white" : highlight === c.id ? "border-ink bg-card" : "border-line bg-card hover:border-ink/40",
           )}
         >
-          <span className="text-[18px] leading-none">{c.icon}</span>
+          <GroceryIcon icon={c.icon} size={24} />
           <span className="min-w-0 leading-tight">{c.name}</span>
         </button>
       ))}
@@ -591,7 +626,7 @@ function SortAssistant({
         {i + 1} von {queue.length}
       </p>
       <div key={item.id} className="animate-fade-up mt-1 mb-4 flex items-center gap-3">
-        <span className="text-[34px] leading-none">{s?.icon ?? category(s?.category)?.icon ?? "🛒"}</span>
+        <GroceryIcon icon={s?.icon ?? category(s?.category)?.icon ?? "🛒"} size={48} />
         <div className="min-w-0">
           <p className="truncate font-serif text-[28px] leading-tight">{item.name}</p>
           <p className="text-[14px] text-muted">

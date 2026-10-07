@@ -302,10 +302,11 @@ await page.click("button[aria-label='Eier: gekauft']", { button: "right" });
 await page.fill("[role=dialog] input[name=amount]", "10");
 await page.click("[role=dialog] button:has-text('Speichern')");
 await page.waitForSelector("[role=dialog]", { state: "detached" });
-await page.click("button[aria-pressed]:has-text('🍎 Obst')");
+await page.click("button[aria-pressed]:has-text('Obst')");
 const basketObstTiles = await page.locator("button[aria-label$=': gekauft']").count();
 await page.click("button[aria-pressed]:has-text('Alle')");
 await page.click("button[aria-label='Milch: gekauft']");
+const undoToast = await page.waitForSelector("text=Milch gekauft").then(() => true, () => false);
 for (let t = 0; t < 50 && groceries().find((g) => g.name === "Milch")?.status !== "done"; t++) await page.waitForTimeout(200);
 await page.waitForTimeout(600);
 await shot("07c-basket-bought");
@@ -322,6 +323,8 @@ const basket = {
   categories: Object.fromEntries(g.map((x) => [x.name, x.category])),
   learnedUnknown: doc().grocery_words?.["quinoa-bratlinge"],
   obstFilterTiles: basketObstTiles,
+  undoToast,
+  iconsLoaded: await page.evaluate(() => [...document.images].filter((i) => i.src.includes("einkauf-icons")).every((i) => i.complete && i.naturalWidth > 0)),
   milchBackOpen: g.filter((x) => x.name === "Milch").map((x) => x.status),
 };
 
