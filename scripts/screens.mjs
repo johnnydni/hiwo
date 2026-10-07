@@ -180,7 +180,7 @@ for (const [vp, size] of Object.entries(VIEWPORTS)) {
   if (!only || only.includes("sheet")) {
     await page.goto(BASE + "/einkauf/");
     await page.waitForLoadState("networkidle");
-    await page.click("button:has-text('Artikel hinzufügen')");
+    await page.click("button[aria-label='Artikel hinzufügen']");
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${OUT}/${vp}-sheet.png` });
     // opened from an (animated) page header
