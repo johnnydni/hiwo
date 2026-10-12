@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
-import { ChevronDown, ListChecks, Plus, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, ListChecks, Plus, Search, Trash2, X } from "lucide-react";
 import { useActions } from "@/components/use-actions";
 import { GroceryIcon } from "@/components/grocery-icon";
 import { Sheet } from "@/components/sheet";
@@ -29,6 +29,8 @@ type Change =
   | { type: "remove"; ids: string[] };
 
 const UNSORTED = "unsortiert";
+const HIDE_RECENT = "hiwo.einkauf.zuletzt-ausgeblendet";
+
 const byName = (a: GroceryItem, b: GroceryItem) => a.name.localeCompare(b.name, "de");
 
 /**
@@ -47,6 +49,20 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
   const [editing, setEditing] = useState<GroceryItem | null>(null);
   const [sorting, setSorting] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
+  // a per-device view choice, so it lives in the browser rather than in hiwo.json
+  const [hideRecent, setHideRecent] = useState(false);
+  useEffect(() => {
+    try {
+      setHideRecent(localStorage.getItem(HIDE_RECENT) === "1");
+    } catch {}
+  }, []);
+  const toggleRecent = () => {
+    const next = !hideRecent;
+    setHideRecent(next);
+    try {
+      localStorage.setItem(HIDE_RECENT, next ? "1" : "0");
+    } catch {}
+  };
   // "Milch gekauft · Rückgängig", for a mis-tap
   const [undo, setUndo] = useState<GroceryItem | null>(null);
   useEffect(() => {
@@ -262,8 +278,19 @@ export function GroceryBasket({ items, learned }: { items: GroceryItem[]; learne
 
             {recent.length > 0 && (
               <section>
-                <h2 className="mb-2 text-[13px] font-medium tracking-wide text-muted uppercase">Zuletzt gekauft</h2>
-                <TileGrid>{recent.map(tile)}</TileGrid>
+                <h2 className="mb-2 flex items-center gap-1 text-[13px] font-medium tracking-wide text-muted uppercase">
+                  Zuletzt gekauft
+                  <button
+                    onClick={toggleRecent}
+                    aria-label={hideRecent ? "Zuletzt gekauft einblenden" : "Zuletzt gekauft ausblenden"}
+                    aria-pressed={hideRecent}
+                    className="-my-2 flex h-10 w-10 items-center justify-center rounded-full text-faint transition hover:text-ink"
+                  >
+                    {hideRecent ? <Eye size={17} strokeWidth={1.7} /> : <EyeOff size={17} strokeWidth={1.7} />}
+                  </button>
+                  {hideRecent && <span className="text-[12px] font-normal tracking-normal normal-case text-faint">{recent.length} ausgeblendet</span>}
+                </h2>
+                {!hideRecent && <TileGrid>{recent.map(tile)}</TileGrid>}
               </section>
             )}
 
