@@ -208,7 +208,6 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
     await page.click("[role=dialog] button:has-text('Wirklich?')");
     await page.waitForSelector("[role=dialog] button:has-text('Version 1')");
     await page.waitForTimeout(800);
-    await page.keyboard.press("Escape");
     sketchCheck = {
       versionsShown: versions,
       inDoc: (doc().sketches ?? []).length,
@@ -216,6 +215,7 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
       originalUnchanged: original.equals(gh.files.get(variant.path)),
       badge: await page.locator("button[aria-label='Skizzen (1)']").count(),
     };
+    await page.keyboard.press("Escape");
   } else {
     await page.fill("input[placeholder^='z.B. Sofa']", "Samtsessel");
     await page.press("input[placeholder^='z.B. Sofa']", "Enter");
@@ -235,6 +235,27 @@ for (const [k, file] of ["room1.jpg", "room2.jpg"].entries()) {
       listKept: doc().shopping.some((s) => s.variant_id === v.id && s.name === "Samtsessel"),
     };
   }
+  await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
+  await page.waitForSelector("text=Ausgangszustand");
+}
+// the sketch becomes a variant of its own; it stays in the Skizzen too
+{
+  const variant = doc().photos.find((p) => p.name === "Japandi");
+  await page.goto(`${BASE}/variante/?id=${variant.id}`);
+  await page.click("button[aria-label='Skizzen (1)']");
+  await page.click("[role=dialog] button:has-text('Version 1')");
+  await page.click("[role=dialog] button:has-text('Als Variante speichern')");
+  await page.waitForSelector("h1:has-text('Japandi (Skizze)')", { timeout: 15000 });
+  await page.waitForTimeout(600);
+  await shot("05f-sketch-variant");
+  const fromSketch = doc().photos.find((p) => p.name === "Japandi (Skizze)");
+  const sketch = (doc().sketches ?? [])[0];
+  sketchCheck.variant = {
+    isVariant: fromSketch?.kind === "variant" && fromSketch.room_id === variant.room_id,
+    sameImage: !!sketch && Buffer.from(gh.files.get(fromSketch.path)).equals(Buffer.from(gh.files.get(sketch.path))),
+    sketchKept: (doc().sketches ?? []).length === 1,
+    sheetClosed: (await page.locator("[role=dialog]").count()) === 0,
+  };
   await page.goto(`${BASE}/zimmer/?id=${wohnzimmer.id}`);
   await page.waitForSelector("text=Ausgangszustand");
 }
