@@ -8,7 +8,7 @@ import { newId, now } from "@/lib/id";
 import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { normalize as normalizeWord, pruneRecent, putEntries } from "@/lib/groceries";
-import { removeFile, uploadPhoto } from "@/lib/store";
+import { photoUrl, removeFile, uploadPhoto } from "@/lib/store";
 import type { CoverArtId, GroceryItem, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
@@ -400,6 +400,38 @@ export function useActions() {
       const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Skizze hochgeladen"));
       await mutate("hiwo: Skizze gespeichert", (d) => {
         (d.sketches ??= []).push({ id, source_id: sourceId, path, sha, width, height, created_by: by, created_at: now() });
+      });
+      return id;
+    },
+
+    /**
+     * Turns a sketch of a room photo into a variant of that room: the picture is
+     * copied, so the sketch stays in the photo's history. Returns the variant id.
+     */
+    sketchToVariant: async (sketchId: string) => {
+      const sketch = doc.sketches?.find((k) => k.id === sketchId);
+      const src = sketch && doc.photos.find((p) => p.id === sketch.source_id);
+      if (!sketch || !src) return null;
+      const blob = await (await fetch(await photoUrl(conn, sketch.path))).blob();
+      const id = newId();
+      const path = `fotos/${src.room_id}/${id}.jpg`;
+      const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Skizze als Variante"));
+      await mutate("hiwo: Skizze als Variante gespeichert", (d) => {
+        const n = d.photos.filter((p) => p.room_id === src.room_id && p.kind === "variant").length + 1;
+        d.photos.push({
+          id,
+          room_id: src.room_id,
+          kind: "variant",
+          name: src.kind === "variant" && src.name ? `${src.name} (Skizze)` : `Variante ${n}`,
+          note: null,
+          path,
+          sha,
+          width: sketch.width,
+          height: sketch.height,
+          created_by: by,
+          created_at: now(),
+        });
+        touchRoom(d, src.room_id);
       });
       return id;
     },

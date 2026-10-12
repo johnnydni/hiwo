@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Download, Layers, PenLine, Share, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Download, ImagePlus, Layers, PenLine, Share, Trash2 } from "lucide-react";
 import { useApp, useMemberName } from "./app-context";
 import { useActions } from "./use-actions";
 import { MarkupEditor } from "./markup-editor";
@@ -106,8 +107,12 @@ function SketchesSheet({
   originalPath: string;
 }) {
   const { doc, conn } = useApp();
-  const { deleteSketch } = useActions();
+  const { deleteSketch, sketchToVariant } = useActions();
+  const router = useRouter();
   const [exporting, setExporting] = useState(false);
+  const [converting, setConverting] = useState(false);
+  // only sketches of room photos can become a variant, not those of products
+  const ofRoomPhoto = doc.photos.some((p) => p.id === sourceId);
   const name = useMemberName();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -151,6 +156,23 @@ function SketchesSheet({
           >
             {canShareFiles() ? <Share size={17} /> : <Download size={17} />} {canShareFiles() ? "Teilen oder sichern" : "Herunterladen"}
           </Button>
+          {ofRoomPhoto && (
+            <Button
+              variant="secondary"
+              className="mt-3 w-full"
+              loading={converting}
+              onClick={async () => {
+                setConverting(true);
+                const id = await sketchToVariant(current.id).catch(() => null);
+                setConverting(false);
+                if (!id) return;
+                onClose();
+                router.push(`/variante?id=${id}`);
+              }}
+            >
+              <ImagePlus size={17} /> Als Variante speichern
+            </Button>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-3">
             <Button variant="secondary" onClick={() => onDraw(current.path)}>
               <PenLine size={17} /> Weiterzeichnen
