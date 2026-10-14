@@ -94,6 +94,26 @@ export type GroceryItem = {
 };
 
 /**
+ * Something from the home that is to be sold (Kleinanzeigen, Flohmarkt, …),
+ * with its own photos. Sold things stay, so the sum of what came in is kept.
+ */
+export type SaleItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number | null;
+  status: SaleStatus;
+  /** fotos/verkauf/<item>/<id>.jpg; the first one is the title picture */
+  photos: { path: string; sha: string }[];
+  created_by: string | null;
+  created_at: string;
+  /** set when the status changes to "sold" */
+  sold_at: string | null;
+};
+
+export type SaleStatus = "available" | "reserved" | "sold";
+
+/**
  * A drawn-on copy of a photo (Ausgangsfoto, Variante or Produktfoto), saved
  * from the image editor. The original stays untouched; every save is a new
  * sketch, so the list doubles as version history.
@@ -154,4 +174,6 @@ export type HiwoDoc = {
   groceries?: GroceryItem[];
   /** normalized name → category, what was confirmed in the sorting assistant */
   grocery_words?: Record<string, string>;
+  /** Verkaufen; added later */
+  sales?: SaleItem[];
 };
