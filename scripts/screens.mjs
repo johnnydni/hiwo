@@ -128,6 +128,21 @@ gh.files.set("fotos/einkauf/s13.jpg", product);
 shopping.push(item("s13", "Sessel Salbei", "r0", "v0", 59900, "open", { image_path: "fotos/einkauf/s13.jpg", image_sha: "x" }));
 gh.files.set("fotos/skizzen/b0/k1.jpg", jpg[1]);
 const sketches = [{ id: "k1", source_id: "b0", path: "fotos/skizzen/b0/k1.jpg", sha: "x", width: 1200, height: 900, created_by: "m2", created_at: t(4) }];
+// Verkaufen: a few things with photos, one reserved, one sold
+gh.files.set("fotos/verkauf/sa1/1.jpg", product);
+gh.files.set("fotos/verkauf/sa1/2.jpg", jpg[1]);
+gh.files.set("fotos/verkauf/sa2/1.jpg", jpg[3]);
+gh.files.set("fotos/verkauf/sa4/1.jpg", jpg[4]);
+const sale = (id, name, price, status, photos, description = null) => ({
+  id, name, description, price_cents: price, status, created_by: "m1", created_at: t(5),
+  photos: photos.map((n) => ({ path: `fotos/verkauf/${id}/${n}.jpg`, sha: "x" })), sold_at: status === "sold" ? t(6) : null,
+});
+const sales = [
+  sale("sa1", "Sessel Salbei", 12000, "available", [1, 2], "Gut erhalten, kaum benutzt. Bezug abnehmbar und waschbar.\nMaße: 80 × 75 × 90 cm.\nNur Abholung in Schwabing."),
+  sale("sa2", "Alte Kommode, Kiefer massiv", 4500, "reserved", [1]),
+  sale("sa3", "Schreibtischlampe", null, "available", []),
+  sale("sa4", "Bücherregal Billy", 2000, "sold", [1]),
+];
 const doc = {
   schema: 2,
   home: { id: "h1", name: "Altbau Schwabing", city: "München", cover_photo_id: "b0", created_at: t(1) },
@@ -135,7 +150,7 @@ const doc = {
     { id: "m1", name: "Illy", role: "owner", joined_at: t(1) },
     { id: "m2", name: "Nadin", role: "member", joined_at: t(2) },
   ],
-  rooms, photos, shopping, sketches,
+  rooms, photos, shopping, sketches, sales,
 };
 gh.files.set("hiwo.json", Buffer.from(JSON.stringify(doc, null, 2)));
 
@@ -154,6 +169,8 @@ const PAGES = {
   einkauf: "/einkauf/",
   artikel: "/artikel/?id=s1",
   "artikel-foto": "/artikel/?id=s2",
+  verkaufen: "/einkauf/?verkaufen=1",
+  verkauf: "/verkauf/?id=sa1",
   profil: "/profil/",
   mitbewohner: "/profil/mitbewohner/",
 };

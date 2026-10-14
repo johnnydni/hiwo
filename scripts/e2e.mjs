@@ -361,6 +361,53 @@ const basket = {
   milchBackOpen: g.filter((x) => x.name === "Milch").map((x) => x.status),
 };
 
+// Verkaufen: a thing to sell with two photos, reserved, sold, ad text copied
+await page.click("button[aria-label='Verkaufen']");
+await page.waitForSelector("text=Nichts zu verkaufen.");
+await page.click("button[aria-label='Zum Verkauf anlegen']");
+await page.locator("[role=dialog] input[type=file]").setInputFiles([`${OUT}/room1.jpg`, `${OUT}/room2.jpg`]);
+await page.fill("[role=dialog] input[name=name]", "Sessel Samt");
+await page.fill("[role=dialog] input[name=price]", "120");
+await page.fill("[role=dialog] textarea[name=description]", "Kaum benutzt, nur Abholung.");
+await shot("07e-sell-add");
+await page.click("[role=dialog] button:has-text('Speichern')");
+await page.waitForSelector("[role=dialog]", { state: "detached" });
+await page.waitForSelector("a:has-text('Sessel Samt')");
+await page.waitForTimeout(600);
+await shot("07f-sell");
+await page.click("a:has-text('Sessel Samt')");
+await page.waitForURL(/\/verkauf\/?\?id=/);
+await page.click("button[aria-pressed]:has-text('Reserviert')");
+const sales = () => doc().sales ?? [];
+for (let t = 0; t < 50 && sales()[0]?.status !== "reserved"; t++) await page.waitForTimeout(200);
+await page.click("button:has-text('Anzeigentext kopieren')");
+const adCopied = await page.evaluate(() => navigator.clipboard.readText());
+// second photo becomes the title picture, then the old first one is deleted
+const [firstPhoto, secondPhoto] = sales()[0].photos.map((p) => p.path);
+await page.click("button[aria-label='Foto 2']");
+await page.click("button[aria-label='Als Titelfoto']");
+for (let t = 0; t < 50 && sales()[0].photos[0].path !== secondPhoto; t++) await page.waitForTimeout(200);
+await page.click("button[aria-label='Foto 2']");
+await page.click("button[aria-label='Foto löschen']");
+await page.click("button[aria-label='Foto löschen']");
+for (let t = 0; t < 50 && gh.files.has(firstPhoto); t++) await page.waitForTimeout(200);
+await page.click("button[aria-pressed]:has-text('Verkauft')");
+for (let t = 0; t < 50 && sales()[0]?.status !== "sold"; t++) await page.waitForTimeout(200);
+await page.waitForTimeout(600);
+await shot("07g-sell-item");
+await page.click("a[aria-label='Zurück']");
+await page.waitForSelector("text=Verkauft (1)");
+const sale = sales()[0];
+const sell = {
+  name: sale.name,
+  price: sale.price_cents,
+  status: sale.status,
+  soldAt: !!sale.sold_at,
+  photos: sale.photos.map((p) => p.path === secondPhoto),
+  firstPhotoDeleted: !gh.files.has(firstPhoto),
+  adCopied,
+};
+
 // shopping (furnishing list)
 await page.click("text=Gesamte Wohnung");
 const add = async (name, room, price) => {
@@ -509,6 +556,7 @@ const summary = {
   keyLeftInUrl,
   concurrent,
   basket,
+  sell,
   emptyRoomHasPlus,
   reorder,
   sketchCheck,

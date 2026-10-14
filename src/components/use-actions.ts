@@ -9,7 +9,7 @@ import { prepareImage } from "@/lib/image";
 import { fetchPreview, hostname, looksLikeUrl, normalizeUrl } from "@/lib/link-preview";
 import { normalize as normalizeWord, pruneRecent, putEntries } from "@/lib/groceries";
 import { photoUrl, removeFile, uploadPhoto } from "@/lib/store";
-import type { CoverArtId, GroceryItem, HiwoDoc, PlanDoor, PlanRoom, Sketch } from "@/lib/types";
+import type { CoverArtId, GroceryItem, HiwoDoc, PlanDoor, PlanRoom, SaleStatus, Sketch } from "@/lib/types";
 
 function str(fd: FormData, key: string) {
   const v = fd.get(key);
@@ -59,6 +59,18 @@ export function useActions() {
       created_by: by,
       created_at: now(),
     };
+  }
+
+  /** Uploads photos of a thing to sell, one after the other. */
+  async function uploadSalePhotos(itemId: string, files: File[]) {
+    const out: { path: string; sha: string }[] = [];
+    for (const file of files) {
+      const { blob } = await prepareImage(file, 1600);
+      const path = `fotos/verkauf/${itemId}/${newId()}.jpg`;
+      const { sha } = await track(uploadPhoto(conn, path, blob, "hiwo: Verkaufsfoto hochgeladen"));
+      out.push({ path, sha });
+    }
+    return out;
   }
 
   /** Stores the shop's product picture; replaces the name only if it was just the link. */
@@ -383,6 +395,78 @@ export function useActions() {
         }
       });
       if (old?.image_path) await removeFile(conn, old.image_path, old.image_sha, "hiwo: altes Produktfoto").catch(() => {});
+    },
+
+    // -- Verkaufen -------------------------------------------------------------
+    /** Photos first, then one commit for the entry; returns its id. */
+    addSaleItem: async (fd: FormData, files: File[]) => {
+      const id = newId();
+      const photos = await uploadSalePhotos(id, files);
+      const name = str(fd, "name");
+      await mutate(`hiwo: ${name} zum Verkauf`, (d) => {
+        (d.sales ??= []).push({
+          id,
+          name,
+          description: str(fd, "description") || null,
+          price_cents: parsePrice(str(fd, "price")),
+          status: "available",
+          photos,
+          created_by: by,
+          created_at: now(),
+          sold_at: null,
+        });
+      });
+      return id;
+    },
+
+    updateSaleItem: (id: string, fd: FormData) =>
+      mutate("hiwo: Verkauf bearbeitet", (d) => {
+        const s = d.sales?.find((x) => x.id === id);
+        if (!s) return;
+        s.name = str(fd, "name") || s.name;
+        s.price_cents = parsePrice(str(fd, "price"));
+        s.description = str(fd, "description") || null;
+      }),
+
+    setSaleStatus: (id: string, status: SaleStatus) =>
+      mutate(status === "sold" ? "hiwo: Verkauft" : status === "reserved" ? "hiwo: Reserviert" : "hiwo: Wieder zu verkaufen", (d) => {
+        const s = d.sales?.find((x) => x.id === id);
+        if (!s) return;
+        s.status = status;
+        s.sold_at = status === "sold" ? now() : null;
+      }),
+
+    addSalePhotos: async (id: string, files: File[]) => {
+      const photos = await uploadSalePhotos(id, files);
+      await mutate("hiwo: Verkaufsfoto hinzugefügt", (d) => {
+        const s = d.sales?.find((x) => x.id === id);
+        if (s) s.photos.push(...photos);
+      });
+    },
+
+    /** Moves a photo to the front: it becomes the title picture. */
+    setSaleCover: (id: string, path: string) =>
+      mutate("hiwo: Titelfoto gewählt", (d) => {
+        const s = d.sales?.find((x) => x.id === id);
+        const p = s?.photos.find((x) => x.path === path);
+        if (s && p) s.photos = [p, ...s.photos.filter((x) => x !== p)];
+      }),
+
+    removeSalePhoto: async (id: string, path: string) => {
+      const photo = doc.sales?.find((x) => x.id === id)?.photos.find((p) => p.path === path);
+      await mutate("hiwo: Verkaufsfoto gelöscht", (d) => {
+        const s = d.sales?.find((x) => x.id === id);
+        if (s) s.photos = s.photos.filter((p) => p.path !== path);
+      });
+      if (photo) await removeFile(conn, photo.path, photo.sha, "hiwo: Verkaufsfoto gelöscht").catch(() => {});
+    },
+
+    deleteSaleItem: async (id: string) => {
+      const item = doc.sales?.find((x) => x.id === id);
+      await mutate("hiwo: Verkauf gelöscht", (d) => {
+        d.sales = (d.sales ?? []).filter((x) => x.id !== id);
+      });
+      for (const p of item?.photos ?? []) await removeFile(conn, p.path, p.sha, "hiwo: Verkaufsfoto gelöscht").catch(() => {});
     },
 
     // -- Lageplan --------------------------------------------------------------
